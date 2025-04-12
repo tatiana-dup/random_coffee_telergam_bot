@@ -13,6 +13,7 @@ class DatabaseConfig:
 class TgBot:
     token: str
     admin_tg_id: int
+    group_tg_id: int
 
 
 @dataclass
@@ -28,7 +29,8 @@ def load_config(path: str | None = None) -> Config:
     return Config(
         tg_bot=TgBot(
             token=env('BOT_TOKEN'),
-            admin_tg_id=env.int('ADMIN_TELEGRAM_ID')
+            admin_tg_id=env.int('ADMIN_TELEGRAM_ID'),
+            group_tg_id=env.int('TELEGRAM_ID_TEST_GROUP')
         ),
         db=DatabaseConfig(
             db_url=env('DATABASE_URL')
