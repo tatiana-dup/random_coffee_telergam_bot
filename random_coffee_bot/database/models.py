@@ -3,20 +3,18 @@ from sqlalchemy import (Column, Integer,
                         Boolean, Interval,
                         DateTime, Date
                         )
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker, Mapped, mapped_column
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from datetime import datetime
 
-Base = declarative_base()
+from db import Base, CommonMixin
+from config import DATABASE_URL, engine
 
 
-class User(Base):
+class Users(CommonMixin, Base):
     """Таблица пользователя."""
 
-    __tablename__ = 'users'
-
-    id = Column(Integer, primary_key=True)
     telegram_id = Column(Integer)
     username = Column(String)
     first_name = Column(String)
@@ -39,12 +37,9 @@ class User(Base):
     feedbacks = relationship("Feedback", back_populates="user")
 
 
-class Pair(Base):
+class Pairs(CommonMixin, Base):
     """Таблица пар."""
 
-    __tablename__ = 'pairs'
-
-    id = Column(Integer, primary_key=True)
     user1_id = Column(Integer, ForeignKey('users.id'))
     user2_id = Column(Integer, ForeignKey('users.id'))
 
@@ -61,12 +56,9 @@ class Pair(Base):
     feedbacks = relationship("Feedback", back_populates="pair")
 
 
-class Feedback(Base):
+class Feedback(CommonMixin, Base):
     """Таблица с обратной связью."""
 
-    __tablename__ = 'feedback'
-
-    id = Column(Integer, primary_key=True)
     pair_id = Column(Integer, ForeignKey('pairs.id'))
     user_id = Column(Integer, ForeignKey('users.id'))
 
@@ -76,21 +68,23 @@ class Feedback(Base):
 
     pair = relationship("Pair", back_populates="feedbacks")
     user = relationship("User", back_populates="feedbacks")
+    
+
+class Common_interval(CommonMixin, Base):
+    """Интервал между встречами."""
+    
+    number_of_day = Column(Integer)
 
 
-DATABASE_URL = "sqlite:///database.db"
-engine = create_engine(DATABASE_URL)
+# engine = create_engine(DATABASE_URL)
 
-SessionLocal = sessionmaker(bind=engine)
+# SessionLocal = sessionmaker(bind=engine)
 
 
-def create_database():
-    try:
-        Base.metadata.create_all(bind=engine)
-        print("База данных и таблицы созданы.")
-    except Exception as e:
-        print(f"Ошибка при создании базы данных: {e}")
-
+async def create_database():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)  # Создание всех таблиц
 
 if __name__ == "__main__":
-   create_database()
+   import asyncio
+   asyncio.run(create_database())
