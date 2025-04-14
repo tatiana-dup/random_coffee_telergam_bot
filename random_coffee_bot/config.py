@@ -1,17 +1,38 @@
-from dotenv import load_dotenv
-import os
+from dataclasses import dataclass
 
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
-TELEGRAM_ID_PROJECT_GROUP=-123456789
-TELEGRAM_ID_TEST_GROUP=-123456789
+from environs import Env
 
 
-class Settings:
-    def __init__(self):
-        self.database_url = os.getenv('DATABASE_URL', 'sqlite:///default.db')
+# Этот класс используется, пока мы работаем с SQLite.
+@dataclass
+class DatabaseConfig:
+    db_url: str
 
 
-settings = Settings()
+@dataclass
+class TgBot:
+    token: str
+    admin_tg_id: int
+    group_tg_id: int
+
+
+@dataclass
+class Config:
+    tg_bot: TgBot
+    db: DatabaseConfig
+
+
+def load_config(path: str | None = None) -> Config:
+    env: Env = Env()
+    env.read_env(path)
+
+    return Config(
+        tg_bot=TgBot(
+            token=env('BOT_TOKEN'),
+            admin_tg_id=env.int('ADMIN_TELEGRAM_ID'),
+            group_tg_id=env.int('TELEGRAM_ID_TEST_GROUP')
+        ),
+        db=DatabaseConfig(
+            db_url=env('DATABASE_URL')
+        )
+    )
