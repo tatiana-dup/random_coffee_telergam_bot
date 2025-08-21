@@ -8,7 +8,8 @@
 
 
 ### Авторы проекта:
-Основан на проекте [TGbot-Raul] ([GitHub link](https://github.com/Reydannakipin-org/TGbot-Raul-1)).
+Основан на проекте [TGbot-Raul](https://github.com/Reydannakipin-org/TGbot-Raul-1).
+
 Исходная разработка — командная работа:
 
 [Дуплинская Татьяна](https://github.com/tatiana-dup)
