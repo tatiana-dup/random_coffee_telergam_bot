@@ -130,14 +130,14 @@ def generate_inline_interval_options():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
-                text=INTERVAL_TEXTS['2'],
-                callback_data=('new_global_interval:2')
+                text=INTERVAL_TEXTS['1'],
+                callback_data=('new_global_interval:1')
             )
         ],
         [
             InlineKeyboardButton(
-                text=INTERVAL_TEXTS['3'],
-                callback_data=('new_global_interval:3')
+                text=INTERVAL_TEXTS['2'],
+                callback_data=('new_global_interval:2')
             )
         ],
         [

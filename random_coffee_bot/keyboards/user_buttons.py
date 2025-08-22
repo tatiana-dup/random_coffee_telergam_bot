@@ -1,6 +1,7 @@
 from aiogram.types import KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from texts import (
     KEYBOARD_BUTTON_TEXTS,
     INLINE_BUTTON_TEXTS,
@@ -108,11 +109,10 @@ def generate_inline_interval():
     '''
     Инлайн-клавиатура для выбора интервала встреч.
     '''
-    text = 'По умолчанию'
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
-                text=text,
+                text=INTERVAL_TEXTS['default'],
                 callback_data='change_interval'
             )
         ],
@@ -120,12 +120,6 @@ def generate_inline_interval():
             InlineKeyboardButton(
                 text=INTERVAL_TEXTS['2'],
                 callback_data=('new_interval:2')
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text=INTERVAL_TEXTS['3'],
-                callback_data=('new_interval:3')
             )
         ],
         [
@@ -149,17 +143,20 @@ def yes_or_no_keyboard():
     ])
     return keyboard
 
+
 def meeting_question_kb(pair_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Да", callback_data=f"meeting_yes:{pair_id}")],
         [InlineKeyboardButton(text="❌ Нет", callback_data=f"meeting_no:{pair_id}")]
     ])
 
+
 def comment_question_kb(feedback_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['leave_comment'], callback_data=f"leave_comment:{feedback_id}")],
         [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['no_comment'], callback_data=f"no_comment:{feedback_id}")]
     ])
+
 
 def confirm_edit_comment_kb(feedback_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
