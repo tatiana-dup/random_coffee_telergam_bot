@@ -40,7 +40,7 @@ async def cmd_add_admin(message: Message, state: FSMContext):
 
 
 @super_admin_router.message(
-    Command("cancel"),
+    Command('cancel'),
     StateFilter(FSMAdminPanel.waiting_for_user_id)
 )
 async def cancel_admin_handler(message: Message, state: FSMContext):
@@ -112,7 +112,7 @@ async def cmd_remove_admin(message: Message, state: FSMAdminPanel):
 
 
 @super_admin_router.message(
-    Command("cancel"),
+    Command('cancel'),
     StateFilter(FSMAdminPanel.waiting_for_admin_id)
 )
 async def cancel_user_handler(message: Message, state: FSMContext):
@@ -176,7 +176,7 @@ async def process_admin_id(message: Message, state: FSMContext):
         )
 
 
-@super_admin_router.message(Command("admin_list"), StateFilter(default_state))
+@super_admin_router.message(Command('admin_list'), StateFilter(default_state))
 async def admin_list_handler(message: Message):
     '''
     Хэндлер для команды /admin_list, выводит список всех администраторов.

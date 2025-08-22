@@ -496,7 +496,6 @@ async def set_user_as_admin(user_id: int) -> bool:
     """
     try:
         async with AsyncSessionLocal() as session:
-            # Получаем пользователя по его telegram_id
             result = await session.execute(
                 select(User).filter_by(telegram_id=user_id)
             )
@@ -504,7 +503,6 @@ async def set_user_as_admin(user_id: int) -> bool:
 
             if user:
                 user.is_admin = True
-                user.is_active = False
 
                 await session.commit()
                 return True

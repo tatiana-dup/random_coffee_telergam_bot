@@ -34,11 +34,13 @@ from keyboards.admin_buttons import (
     PageCallbackFactory,
     UsersCallbackFactory
 )
+from keyboards.user_buttons import (create_active_user_keyboard,
+                                    create_inactive_user_keyboard)
 from services import admin_service as adm
 from services.constants import DATE_FORMAT
-from services.user_service import get_user_by_telegram_id
+from services.user_service import create_user, get_user_by_telegram_id
 from states.admin_states import FSMAdminPanel
-from texts import ADMIN_TEXTS, COMMANDS_TEXT, KEYBOARD_BUTTON_TEXTS
+from texts import ADMIN_TEXTS, COMMANDS_TEXT, KEYBOARD_BUTTON_TEXTS, TEXTS
 
 from sqlalchemy import select
 from database.models import Setting
@@ -572,7 +574,7 @@ async def process_button_change_interval(message: Message):
         reply_markup=generate_inline_confirm_change_interval())
 
 
-@admin_router.callback_query(F.data == 'confirm_changing_interval',
+@admin_router.callback_query(F.data == 'confirm_changing_global_interval',
                              StateFilter(default_state))
 async def process_choose_new_interval(callback: CallbackQuery):
     """
@@ -622,7 +624,7 @@ async def process_set_new_interval(callback: CallbackQuery):
     await callback.answer()
 
 
-@admin_router.callback_query(F.data == 'cancel_changing_interval',
+@admin_router.callback_query(F.data == 'cancel_changing_global_interval',
                              StateFilter(default_state))
 async def process_cancel_changing_interval(callback: CallbackQuery):
     """
@@ -902,7 +904,47 @@ async def process_cancel_pairing_off(callback: CallbackQuery):
     await callback.answer()
 
 
-@admin_router.message(Command('help'), StateFilter(default_state))
+@admin_router.message(Command('user'), StateFilter(default_state))
+async def open_user_menu_to_admin(message: Message):    
+    """
+    Хэндлер для добавления супер-админа в базу данных, чтобы он тоже
+    стал участником встреч.
+    """
+    if message.from_user is None:
+        return await message.answer(TEXTS['error_access'])
+
+    user_telegram_id = message.from_user.id
+
+    try:
+        async with AsyncSessionLocal() as session:
+            user = await get_user_by_telegram_id(session, user_telegram_id)
+
+            if user is None:
+                user = await create_user(session, user_telegram_id,
+                                         message.from_user.username,
+                                         message.from_user.first_name,
+                                         message.from_user.last_name)
+                await message.answer(ADMIN_TEXTS['add_to_participants'],
+                                     reply_markup=create_active_user_keyboard())
+            else:
+                if user.is_active:
+                    await message.answer(ADMIN_TEXTS['change_menu_to_user_kb'],
+                                         reply_markup=create_active_user_keyboard())
+                else:
+                    await message.answer(ADMIN_TEXTS['change_menu_to_user_kb'],
+                                         reply_markup=create_inactive_user_keyboard())
+    except SQLAlchemyError as e:
+        logger.error('Ошибка при работе с базой данных: %s', str(e))
+        await message.answer(ADMIN_TEXTS['db_error'])
+
+
+@admin_router.message(Command('admin'), StateFilter(default_state))
+async def open_admin_menu(message: Message):
+    await message.answer(ADMIN_TEXTS['change_menu_to_admin_kb'],
+                         reply_markup=buttons_kb_admin)
+
+
+@admin_router.message(Command('admin_help'), StateFilter(default_state))
 async def proccess_comand_help(message: Message):
     """
     Хэндлер обрабатывает команду /help.
@@ -910,21 +952,21 @@ async def proccess_comand_help(message: Message):
     await message.answer(ADMIN_TEXTS['command_help_admin'], parse_mode='HTML')
 
 
-@admin_router.message(F.text, StateFilter(default_state))
-async def fallback_handler(message: Message):
-    """
-    Хэндлер срабатывает, когда админ отправляет неизвестную команду или текст.
-    """
-    logger.info('Админ отправил неизвестную команду.')
-    await message.answer(ADMIN_TEXTS['admin_unknown_command'],
-                         reply_markup=buttons_kb_admin)
+# @admin_router.message(F.text, StateFilter(default_state))
+# async def fallback_handler(message: Message):
+#     """
+#     Хэндлер срабатывает, когда админ отправляет неизвестную команду или текст.
+#     """
+#     logger.info('Админ отправил неизвестную команду.')
+#     await message.answer(ADMIN_TEXTS['admin_unknown_command'],
+#                          reply_markup=buttons_kb_admin)
     
-@admin_router.message(StateFilter(default_state))
-async def other_type_handler(message: Message):
-    """
-    Хэндлер срабатывает, когда админ отправляет что-то кроме текста,
-    что бот не может обработать.
-    """
-    logger.info('Админ отправил что-то кроме текста.')
-    await message.answer(ADMIN_TEXTS['admin_unknown_type_data'],
-                         reply_markup=buttons_kb_admin)
+# @admin_router.message(StateFilter(default_state))
+# async def other_type_handler(message: Message):
+#     """
+#     Хэндлер срабатывает, когда админ отправляет что-то кроме текста,
+#     что бот не может обработать.
+#     """
+#     logger.info('Админ отправил что-то кроме текста.')
+#     await message.answer(ADMIN_TEXTS['admin_unknown_type_data'],
+#                          reply_markup=buttons_kb_admin)

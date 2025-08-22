@@ -55,8 +55,8 @@ from services.constants import DATE_FORMAT_1
 logger = logging.getLogger(__name__)
 
 user_router = Router()
-user_router.message.filter(~AdminMessageFilter())
-user_router.callback_query.filter(~AdminCallbackFilter())
+# user_router.message.filter(~AdminMessageFilter())
+# user_router.callback_query.filter(~AdminCallbackFilter())
 
 
 @user_router.message(CommandStart(), StateFilter(default_state))

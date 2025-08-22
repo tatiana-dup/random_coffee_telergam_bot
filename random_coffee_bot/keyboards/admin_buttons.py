@@ -116,11 +116,11 @@ def generate_inline_confirm_change_interval():
         [
             InlineKeyboardButton(
                 text=INLINE_BUTTON_TEXTS['yes'],
-                callback_data=('confirm_changing_interval')
+                callback_data=('confirm_changing_global_interval')
             ),
             InlineKeyboardButton(
                 text=INLINE_BUTTON_TEXTS['no'],
-                callback_data=('cancel_changing_interval')
+                callback_data=('cancel_changing_global_interval')
             )
         ]
     ])
