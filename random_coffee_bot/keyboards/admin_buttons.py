@@ -187,12 +187,15 @@ async def generate_inline_user_list(page: int = 1) -> InlineKeyboardBuilder:
     try:
         async with AsyncSessionLocal() as session:
             total_res = await session.execute(
-                select(func.count()).select_from(User)
+                select(func.count())
+                .select_from(User)
+                .where(User.is_admin.is_(False), User.is_blocked.is_(False))
             )
             total = total_res.scalar_one()
 
             stmt = (
                 select(User)
+                .where(User.is_admin.is_(False), User.is_blocked.is_(False))
                 .order_by(User.last_name)
                 .offset((page - 1) * ITEMS_PER_PAGE)
                 .limit(ITEMS_PER_PAGE)

@@ -85,6 +85,8 @@ async def process_find_user_by_telegram_id(message: Message,
     Хэндлер срабатывает в состоянии, когда мы получаем от админа цифры в
     качестве telegram ID. Если в БД есть юзер с таким ID, отправляем инфо
     о нем админу вместе с инлайн-клавиатурой для управления юзером.
+    Если управление юзером недоступно (потому что он либо админ,
+    либо не состоит больше в группе), сообщаем об этом.
     Если такого юзера нет, просим отправить новый ID.
     """
     user_telegram_id = int(message.text)  # type: ignore
@@ -106,10 +108,14 @@ async def process_find_user_by_telegram_id(message: Message,
         logger.debug(f'Пользователь {user_telegram_id} найден.')
 
         if user.is_blocked:
-            await message.answer(
-                f'Пользователь {user.first_name} {user.last_name or ''} '
-                'не является участником группы. Он не участвует в Random '
-                'Coffee, а управление им недоступно.')
+            await message.answer(adm.format_text_about_user(
+                ADMIN_TEXTS['no_access_to_blocked_user'], user))
+            await state.clear()
+            return
+
+        if user.is_admin:
+            await message.answer(adm.format_text_about_user(
+                ADMIN_TEXTS['no_access_to_admin'], user))
             await state.clear()
             return
 
@@ -219,10 +225,13 @@ async def show_user_details(callback: CallbackQuery,
         return
 
     if user.is_blocked:
-        await callback.message.edit_text(
-            f'Пользователь {user.first_name} {user.last_name or ''} '
-            'не является участником группы. Он не участвует в Random '
-            'Coffee, а управление им недоступно.')
+        await callback.message.edit_text(adm.format_text_about_user(
+            ADMIN_TEXTS['no_access_to_blocked_user'], user))
+
+    if user.is_admin:
+        await callback.message.edit_text(adm.format_text_about_user(
+            ADMIN_TEXTS['no_access_to_admin'], user))
+
     else:
         data_text = adm.format_text_about_user(
             ADMIN_TEXTS['finding_user_success'], user)
