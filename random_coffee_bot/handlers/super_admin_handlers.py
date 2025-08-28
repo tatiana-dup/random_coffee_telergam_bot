@@ -91,6 +91,7 @@ async def process_user_id(message: Message, state: FSMContext):
                 ADMIN_TEXTS['now_admin_message'],
                 reply_markup=buttons_kb_admin
             )
+            
             await state.clear()
         else:
             await message.answer(f"Пользователь с ID {user_id} не найден.  Проверьте и отправьте новый ID.\n\nЧтобы отменить действие, отправьте /cancel.")

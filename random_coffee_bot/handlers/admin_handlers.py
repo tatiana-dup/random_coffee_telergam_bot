@@ -150,14 +150,20 @@ async def process_get_all_users_list(message: Message, state: FSMContext):
     со списком юзеров в виде инлайн-кнопок.
     """
     try:
-        kb_bilder = await generate_inline_user_list()
+        kb_bilder, total_users = await generate_inline_user_list()
     except SQLAlchemyError:
         logger.error('Ошибка при работе с базой данных')
         await message.answer(ADMIN_TEXTS['db_error'])
-    await message.answer(
-        text=ADMIN_TEXTS['ask_choose_user_from_list'],
-        reply_markup=kb_bilder.as_markup()
-    )
+
+    if total_users == 0:
+        await message.answer(ADMIN_TEXTS['no_users_in_list'])
+    elif kb_bilder is None:
+        await message.answer(ADMIN_TEXTS['no_page_with_users'])
+    else:
+        await message.answer(
+            text=ADMIN_TEXTS['ask_choose_user_from_list'],
+            reply_markup=kb_bilder.as_markup()
+        )
     await state.clear()
 
 
@@ -184,16 +190,24 @@ async def paginate_users(callback: CallbackQuery,
     """
     page = callback_data.page
     try:
-        kb = await generate_inline_user_list(page=page)
+        kb_bilder, total_users = await generate_inline_user_list(page=page)
     except SQLAlchemyError:
         logger.error('Ошибка при работе с базой данных')
         if isinstance(callback.message, Message):
             await callback.message.answer(ADMIN_TEXTS['db_error'])
-    if isinstance(callback.message, Message):
-        await callback.message.edit_text(
-            text=ADMIN_TEXTS['ask_choose_user_from_list'],
-            reply_markup=kb.as_markup()
-        )
+
+    if total_users == 0:
+        if isinstance(callback.message, Message):
+            await callback.message.edit_text(ADMIN_TEXTS['no_users_in_list'])
+    elif kb_bilder is None:
+        if isinstance(callback.message, Message):
+            await callback.message.edit_text(ADMIN_TEXTS['no_page_with_users'])
+    else:
+        if isinstance(callback.message, Message):
+            await callback.message.edit_text(
+                text=ADMIN_TEXTS['ask_choose_user_from_list'],
+                reply_markup=kb_bilder.as_markup()
+            )
     await callback.answer()
 
 
@@ -913,7 +927,7 @@ async def process_cancel_pairing_off(callback: CallbackQuery):
     await callback.answer()
 
 
-@admin_router.message(Command('user'), StateFilter(default_state))
+@admin_router.message(Command('user_menu'), StateFilter(default_state))
 async def open_user_menu_to_admin(message: Message):    
     """
     Хэндлер для добавления супер-админа в базу данных, чтобы он тоже
@@ -947,7 +961,7 @@ async def open_user_menu_to_admin(message: Message):
         await message.answer(ADMIN_TEXTS['db_error'])
 
 
-@admin_router.message(Command('admin'), StateFilter(default_state))
+@admin_router.message(Command('admin_menu'), StateFilter(default_state))
 async def open_admin_menu(message: Message):
     await message.answer(ADMIN_TEXTS['change_menu_to_admin_kb'],
                          reply_markup=buttons_kb_admin)

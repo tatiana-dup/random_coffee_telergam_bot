@@ -1,5 +1,8 @@
 import logging
 
+from math import ceil
+from typing import Optional, Tuple
+
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import (InlineKeyboardButton,
                            InlineKeyboardMarkup,
@@ -183,7 +186,9 @@ class PageCallbackFactory(CallbackData, prefix='page'):
 ITEMS_PER_PAGE = 10
 
 
-async def generate_inline_user_list(page: int = 1) -> InlineKeyboardBuilder:
+async def generate_inline_user_list(page: int = 1
+                                    ) -> Tuple[Optional[InlineKeyboardBuilder],
+                                               int]:
     try:
         async with AsyncSessionLocal() as session:
             total_res = await session.execute(
@@ -192,6 +197,12 @@ async def generate_inline_user_list(page: int = 1) -> InlineKeyboardBuilder:
                 .where(User.is_admin.is_(False), User.is_blocked.is_(False))
             )
             total = total_res.scalar_one()
+
+            if total == 0:
+                return None, 0
+
+            last_page = max(1, ceil(total/ITEMS_PER_PAGE))
+            page = min(max(1, page), last_page)
 
             stmt = (
                 select(User)
@@ -205,6 +216,9 @@ async def generate_inline_user_list(page: int = 1) -> InlineKeyboardBuilder:
     except SQLAlchemyError as e:
         logger.exception('Не удалось получить список пользователей из БД.')
         raise e
+
+    if not users:
+        return None, total
 
     kb = InlineKeyboardBuilder()
 
@@ -227,7 +241,7 @@ async def generate_inline_user_list(page: int = 1) -> InlineKeyboardBuilder:
         )
 
     kb.adjust(1)
-    return kb
+    return kb, total
 
 
 def generate_inline_pairing_off():
