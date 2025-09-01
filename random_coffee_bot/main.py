@@ -62,7 +62,7 @@ async def main():
 
     # При первом запуске бота установить нужную дату и время первого
     # формирования пар (время UTC):
-    await set_first_pairing_date(datetime(2025, 8, 22, 7, 00))
+    await set_first_pairing_date(datetime(2025, 9, 1, 15, 00))
 
     await schedule_feedback_jobs(session_maker)
 

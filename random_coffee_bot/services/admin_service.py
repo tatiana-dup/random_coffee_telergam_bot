@@ -234,7 +234,7 @@ async def export_users_to_gsheet(
     loop = asyncio.get_running_loop()
 
     rows: list[list[str]] = []
-    headers = ['telegram_id', 'Имя', 'Фамилия', 'Состоит в группе?',
+    headers = ['telegram_id', 'Имя', 'Фамилия', 'Роль', 'Состоит в группе?',
                'Активен?', 'Есть разрешение?', 'Интервал',
                'На паузе до', 'Дата присоединения',
                'Дата и время принятия политики обработки ПД']
@@ -244,6 +244,7 @@ async def export_users_to_gsheet(
         telegram_id = u.telegram_id
         first_name = u.first_name
         last_name = u.last_name if u.last_name else '-'
+        role = 'админ' if u.is_admin else '-'
         is_in_group = 'нет' if u.is_blocked else 'да'
         is_active = 'да' if u.is_active else 'нет'
         has_permission = 'да' if u.has_permission else 'нет'
@@ -255,7 +256,7 @@ async def export_users_to_gsheet(
         accept_policy = (u.joined_at.astimezone(MOSCOW_TZ)
                          .strftime(DATE_TIME_FORMAT))
 
-        rows.append([telegram_id, first_name, last_name, is_in_group,
+        rows.append([telegram_id, first_name, last_name, role, is_in_group,
                      is_active, has_permission, pairing_interval, pause_until,
                      joined_at, accept_policy])
     logger.info(f'Сформировано строк {len(rows)-1}')
@@ -517,7 +518,7 @@ async def set_user_as_admin(user_id: int) -> bool:
         return False
 
 
-async def set_admin_as_user(user_id: int) -> bool:
+async def set_admin_as_user(user_id: int) -> tuple[bool, Optional[User]]:
     """
     Устанавливает пользователя с заданным telegram_id как обычного
     пользователя (не администратора).
@@ -532,7 +533,6 @@ async def set_admin_as_user(user_id: int) -> bool:
     """
     try:
         async with AsyncSessionLocal() as session:
-            # Получаем пользователя по его telegram_id
             result = await session.execute(
                 select(User).filter_by(telegram_id=user_id)
             )
@@ -540,19 +540,18 @@ async def set_admin_as_user(user_id: int) -> bool:
 
             if user:
                 user.is_admin = False
-                user.is_active = True
 
                 await session.commit()
-                return True
+                return (True, user)
             else:
                 logger.warning(f"Пользователь с ID {user_id} не найден.")
-                return False
+                return (False, None)
     except Exception as e:
         logger.error(
             f"Ошибка при изменении статуса администратора для "
             f"пользователя {user_id}: {e}"
         )
-        return False
+        return (False, None)
 
 
 async def is_user_admin(user_id: int) -> bool:
@@ -851,3 +850,20 @@ async def refresh_all_usernames(session: AsyncSession, bot: Bot) -> None:
         except Exception:
             logger.exception(f'Не удалось обновить юзернейм для {user.telegram_id}.')
     await session.commit()
+
+
+# Служебная функция на время разработки.
+async def delete_user(telegram_id: int) -> bool:
+    '''Удаляет пользователя из БД.'''
+    from services.user_service import get_user_by_telegram_id
+    async with AsyncSessionLocal() as session:
+        try:
+            user = await get_user_by_telegram_id(session, telegram_id)
+            if not user:
+                return False
+            await session.delete(user)
+            await session.commit()
+            return True
+        except SQLAlchemyError as e:
+            await session.rollback()
+            raise e

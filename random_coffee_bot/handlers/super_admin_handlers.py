@@ -22,7 +22,8 @@ from services.admin_service import (
     get_admin_list
 )
 from keyboards.admin_buttons import buttons_kb_admin
-from keyboards.user_buttons import create_active_user_keyboard
+from keyboards.user_buttons import (create_active_user_keyboard,
+                                    create_inactive_user_keyboard)
 from texts import ADMIN_TEXTS, KEYBOARD_BUTTON_TEXTS
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ async def process_user_id(message: Message, state: FSMContext):
                 ADMIN_TEXTS['now_admin_message'],
                 reply_markup=buttons_kb_admin
             )
-            
+
             await state.clear()
         else:
             await message.answer(f"Пользователь с ID {user_id} не найден.  Проверьте и отправьте новый ID.\n\nЧтобы отменить действие, отправьте /cancel.")
@@ -149,10 +150,11 @@ async def process_admin_id(message: Message, state: FSMContext):
             await state.clear()
             return
 
-        success = await set_admin_as_user(user_id)
+        success, user = await set_admin_as_user(user_id)
 
         if success:
-            keyboard = create_active_user_keyboard()
+            keyboard = (create_active_user_keyboard() if user.is_active
+                        else create_inactive_user_keyboard())
             await message.answer(
                 f"Пользователь с ID {user_id} теперь обычный пользователь."
             )
@@ -200,3 +202,11 @@ async def admin_list_handler(message: Message):
     admin_list_message = "\n".join(admin_ids)
 
     await message.answer(f"Список админов:\n{admin_list_message}")
+
+
+# Служебный хэндлер на время разработки
+@super_admin_router.message(Command('del'), StateFilter(default_state))
+async def remove_me_from_db(message: Message):
+    from services.admin_service import delete_user
+    await delete_user(message.from_user.id)
+    await message.answer('Готово')

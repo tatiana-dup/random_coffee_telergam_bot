@@ -947,15 +947,14 @@ async def open_user_menu_to_admin(message: Message):
                                          message.from_user.username,
                                          message.from_user.first_name,
                                          message.from_user.last_name)
+                await adm.set_user_as_admin(user_telegram_id)
                 await message.answer(ADMIN_TEXTS['add_to_participants'],
                                      reply_markup=create_active_user_keyboard())
             else:
-                if user.is_active:
-                    await message.answer(ADMIN_TEXTS['change_menu_to_user_kb'],
-                                         reply_markup=create_active_user_keyboard())
-                else:
-                    await message.answer(ADMIN_TEXTS['change_menu_to_user_kb'],
-                                         reply_markup=create_inactive_user_keyboard())
+                reply_kb = (create_active_user_keyboard() if user.is_active
+                            else create_inactive_user_keyboard())
+                await message.answer(ADMIN_TEXTS['change_menu_to_user_kb'],
+                                     reply_markup=reply_kb)
     except SQLAlchemyError as e:
         logger.error('Ошибка при работе с базой данных: %s', str(e))
         await message.answer(ADMIN_TEXTS['db_error'])
