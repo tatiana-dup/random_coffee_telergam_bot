@@ -10,6 +10,9 @@ from filters.super_admin_filters import (
     SuperAdminMessageFilter,
     SuperAdminCallbackFilter
 )
+from main_menu.main_menu_setup import (commands_for_admin,
+                                       delete_main_menu,
+                                       set_main_menu)
 from states.admin_states import FSMAdminPanel
 from services.admin_service import (
     set_user_as_admin,
@@ -86,6 +89,7 @@ async def process_user_id(message: Message, state: FSMContext):
             user_ctx = FSMContext(storage=state.storage, key=key)
             await user_ctx.clear()
 
+            await set_main_menu(message.bot, user_id, commands_for_admin)
             await message.bot.send_message(
                 user_id,
                 ADMIN_TEXTS['now_admin_message'],
@@ -150,7 +154,7 @@ async def process_admin_id(message: Message, state: FSMContext):
         if success:
             keyboard = create_active_user_keyboard()
             await message.answer(
-                f"Пользователь с ID {user_id} теперь обычный пользователь в активном статусе и снова сможет принимать участие во встречах."
+                f"Пользователь с ID {user_id} теперь обычный пользователь."
             )
 
             key = StorageKey(
@@ -161,9 +165,10 @@ async def process_admin_id(message: Message, state: FSMContext):
             user_ctx = FSMContext(storage=state.storage, key=key)
             await user_ctx.clear()
 
+            await delete_main_menu(message.bot, user_id)
             await message.bot.send_message(
                 user_id,
-                "Ты больше не являешься админом и снова можешь участвовать во встречах Random Coffee.",
+                "Ты больше не являешься админом Random Coffee.",
                 reply_markup=keyboard)
             await state.clear()
 

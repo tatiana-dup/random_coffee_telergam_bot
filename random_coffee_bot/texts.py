@@ -327,5 +327,16 @@ COMMANDS_TEXT = {
     'add_admin': '/add_admin',
     'admin_list': '/admin_list',
     'remove_admin': '/remove_admin',
-    'help': '/help'
+    'help': '/help',
+    'admin_help': '/admin_help',
+    'user_menu': '/user_menu',
+    'admin_menu': '/admin_menu'
+}
+
+COMMANDS_DESCRIPTION_TEXT = {
+    'add_admin': 'Дать роль админа',
+    'admin_list': 'Список админов',
+    'remove_admin': 'Забрать роль админа',
+    'user_menu': 'Меню обычного пользователя',
+    'admin_menu': 'Меню админа'
 }

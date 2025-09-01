@@ -17,7 +17,7 @@ from handlers.admin_handlers import admin_router
 from handlers.group_handlers import group_router
 from handlers.common_handler import common_router
 from handlers.users_handlers import user_router
-from main_menu.super_admin_menu import set_super_admin_main_menu
+from main_menu.main_menu_setup import set_main_menu_on_bot_start
 from middlewares import AccessMiddleware
 from globals import job_context
 from services.admin_service import set_first_pairing_date
@@ -54,7 +54,7 @@ async def main():
     dp.include_router(user_router)
     dp.include_router(common_router)
 
-    dp.startup.register(set_super_admin_main_menu)
+    dp.startup.register(set_main_menu_on_bot_start)
 
     #  На случай, если нужно будет запланировать все задачи с чистого листа на новую дату:
     # scheduler.start()  # Для прода закоментировать
