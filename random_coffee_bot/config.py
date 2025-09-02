@@ -1,10 +1,7 @@
 from dataclasses import dataclass
 from environs import Env
 from pathlib import Path
-from zoneinfo import ZoneInfo
-
-
-MOSCOW_TZ = ZoneInfo("Europe/Moscow")
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 @dataclass
@@ -25,16 +22,32 @@ class GoogleSheetConfig:
 
 
 @dataclass
+class TimeConfig:
+    name: str
+    zone: ZoneInfo
+
+
+@dataclass
 class Config:
     tg_bot: TgBot
     db: DatabaseConfig
     g_sheet: GoogleSheetConfig
+    time: TimeConfig
 
 
 def load_config(path: str | None = None) -> Config:
     env: Env = Env()
     default_path = Path(__file__).resolve().parent / '.env'
     env.read_env(path or default_path)
+
+    tz_name = env('DEFAULT_TZ')
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError as e:
+        raise ValueError(
+            f'Неизвестная таймзона с именем {tz_name}'
+            'Проверьте значение DEFAULT_TZ в .env.'
+        ) from e
 
     return Config(
         tg_bot=TgBot(
@@ -47,5 +60,9 @@ def load_config(path: str | None = None) -> Config:
         ),
         g_sheet=GoogleSheetConfig(
             sheet_id=env('GOOGLE_SHEET_ID')
+        ),
+        time=TimeConfig(
+            name=tz_name,
+            zone=tz
         )
     )

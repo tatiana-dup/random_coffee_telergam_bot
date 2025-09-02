@@ -1,5 +1,4 @@
 import logging
-import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED
@@ -12,19 +11,20 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from globals import job_context
 from aiogram import Bot
 
-from config import MOSCOW_TZ
+from config import load_config
 from database.db import AsyncSessionLocal
 from database.models import User, Pair, Setting
-from dotenv import load_dotenv
 from services.admin_service import (feedback_dispatcher_job,
                                     notify_users_about_pairs)
-from services.constants import DATE_TIME_FORMAT
+from services.constants import DATE_TIME_FORMAT_LOCALTIME
 
 logger = logging.getLogger(__name__)
 
-load_dotenv()
+config = load_config()
+bot_timezone = config.time.zone
+db_url = config.db.db_url
 
-DATABASE_URL = os.getenv("DATABASE_URL").replace("+asyncpg", "+psycopg")
+DATABASE_URL = db_url.replace("+asyncpg", "+psycopg")
 
 scheduler = AsyncIOScheduler(
     jobstores={
@@ -196,8 +196,8 @@ def show_next_runs(scheduler: AsyncIOScheduler):
 
     for job in scheduler.get_jobs():
         next_run_utc = job.next_run_time
-        next_run_msk = next_run_utc.astimezone(MOSCOW_TZ)
-        logger.debug(f"🛠 Задача '{job.id}' запустится в: {next_run_msk.strftime(DATE_TIME_FORMAT) if next_run_msk else 'нет запланированного запуска'}")
+        next_run_localtime = next_run_utc.astimezone(bot_timezone)
+        logger.debug(f"🛠 Задача '{job.id}' запустится в: {next_run_localtime.strftime(DATE_TIME_FORMAT_LOCALTIME) if next_run_localtime else 'нет запланированного запуска'}")
 
 
 async def get_next_pairing_date() -> str | None:
@@ -213,8 +213,8 @@ async def get_next_pairing_date() -> str | None:
 
     if job:
         next_run_utc = job.next_run_time
-        next_run_msk = next_run_utc.astimezone(MOSCOW_TZ)
-        next_run_str = next_run_msk.strftime(DATE_TIME_FORMAT)
+        next_run_localtime = next_run_utc.astimezone(bot_timezone)
+        next_run_str = next_run_localtime.strftime(DATE_TIME_FORMAT_LOCALTIME)
 
         if setting_obj and setting_obj.auto_pairing_paused == 1:
             logger.info(f"🛠 Паринг остановлен. Но задача '{job.id}' запланирована на: {next_run_str}")

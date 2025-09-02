@@ -11,11 +11,10 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
-from config import MOSCOW_TZ
 from database.db import AsyncSessionLocal
 from database.models import Feedback, Notification, Pair, Setting, User
 from keyboards.user_buttons import meeting_question_kb
-from services.constants import DATE_FORMAT, DATE_TIME_FORMAT
+from services.constants import DATE_FORMAT, DATE_TIME_FORMAT_UTC
 from services.user_service import set_user_active
 from texts import ADMIN_TEXTS, INTERVAL_TEXTS
 from utils.google_sheets import pairs_sheet, users_sheet
@@ -237,7 +236,7 @@ async def export_users_to_gsheet(
     headers = ['telegram_id', 'Имя', 'Фамилия', 'Роль', 'Состоит в группе?',
                'Активен?', 'Есть разрешение?', 'Интервал',
                'На паузе до', 'Дата присоединения',
-               'Дата и время принятия политики обработки ПД']
+               'Дата и время принятия политики обработки ПД (UTC)']
     rows.append(headers)
 
     for u in users:
@@ -253,8 +252,7 @@ async def export_users_to_gsheet(
         pause_until = (u.pause_until.strftime(DATE_FORMAT) if u.pause_until
                        else '')
         joined_at = u.joined_at.strftime(DATE_FORMAT)
-        accept_policy = (u.joined_at.astimezone(MOSCOW_TZ)
-                         .strftime(DATE_TIME_FORMAT))
+        accept_policy = (u.joined_at.strftime(DATE_TIME_FORMAT_UTC))
 
         rows.append([telegram_id, first_name, last_name, role, is_in_group,
                      is_active, has_permission, pairing_interval, pause_until,
@@ -312,12 +310,11 @@ async def export_pairs_to_gsheet(
         return (met, comment)
 
     for p in pairs:
-        # на время тестирования
-        pairing_date_utc = p.paired_at
-        pairing_date_msk = pairing_date_utc.astimezone(MOSCOW_TZ)
-        pairing_date = pairing_date_msk.strftime('%Y-%m-%d %H:%M')
-        # на время тестирования
-        # pairing_date = p.paired_at.strftime(DATE_FORMAT)
+        # для тестирования в часах и минутах:
+        # pairing_date_utc = p.paired_at
+        # pairing_date = pairing_date_utc.strftime('%Y-%m-%d %H:%M')
+
+        pairing_date = p.paired_at.strftime(DATE_FORMAT)
         fb_by_user = {fb.user_id: fb for fb in p.feedbacks}
         u1_full_name = (f'{p.user1.first_name or ""} {p.user1.last_name or ""}'
                         ).strip()
