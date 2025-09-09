@@ -16,7 +16,13 @@ from database.models import Feedback, Notification, Pair, Setting, User
 from keyboards.user_buttons import meeting_question_kb
 from services.constants import DATE_FORMAT, DATE_TIME_FORMAT_UTC
 from services.user_service import set_user_active
-from texts import ADMIN_TEXTS, INTERVAL_TEXTS
+from texts import (ADMIN_TEXTS,
+                   INTERVAL_TEXTS,
+                   PAIR_TABLE_HEADERS_TEXT,
+                   PAIR_TABLE_VALUES_TEXT as P_V_TEXT,
+                   USER_TABLE_HEADERS_TEXT,
+                   USER_TABLE_VALUES_TEXT as U_V_TEXT,
+                   USER_TEXTS)
 from utils.google_sheets import pairs_sheet, users_sheet
 
 
@@ -233,20 +239,27 @@ async def export_users_to_gsheet(
     loop = asyncio.get_running_loop()
 
     rows: list[list[str]] = []
-    headers = ['telegram_id', 'Имя', 'Фамилия', 'Роль', 'Состоит в группе?',
-               'Активен?', 'Есть разрешение?', 'Интервал',
-               'На паузе до', 'Дата присоединения',
-               'Дата и время принятия политики обработки ПД (UTC)']
+    headers = [USER_TABLE_HEADERS_TEXT['telegram_id'],
+               USER_TABLE_HEADERS_TEXT['first_name'],
+               USER_TABLE_HEADERS_TEXT['last_name'],
+               USER_TABLE_HEADERS_TEXT['role'],
+               USER_TABLE_HEADERS_TEXT['is_in_group'],
+               USER_TABLE_HEADERS_TEXT['is_active'],
+               USER_TABLE_HEADERS_TEXT['has_permission'],
+               USER_TABLE_HEADERS_TEXT['pairing_interval'],
+               USER_TABLE_HEADERS_TEXT['pause_until'],
+               USER_TABLE_HEADERS_TEXT['joined_at'],
+               USER_TABLE_HEADERS_TEXT['privacy_policy']]
     rows.append(headers)
 
     for u in users:
         telegram_id = u.telegram_id
         first_name = u.first_name
-        last_name = u.last_name if u.last_name else '-'
-        role = 'админ' if u.is_admin else '-'
-        is_in_group = 'нет' if u.is_blocked else 'да'
-        is_active = 'да' if u.is_active else 'нет'
-        has_permission = 'да' if u.has_permission else 'нет'
+        last_name = u.last_name if u.last_name else U_V_TEXT['dash']
+        role = U_V_TEXT['admin'] if u.is_admin else U_V_TEXT['dash']
+        is_in_group = U_V_TEXT['no'] if u.is_blocked else U_V_TEXT['yes']
+        is_active = U_V_TEXT['yes'] if u.is_active else U_V_TEXT['no']
+        has_permission = U_V_TEXT['yes'] if u.has_permission else U_V_TEXT['no']
         pairing_interval = (INTERVAL_TEXTS['default'] if not u.pairing_interval
                             else INTERVAL_TEXTS[str(u.pairing_interval)])
         pause_until = (u.pause_until.strftime(DATE_FORMAT) if u.pause_until
@@ -296,17 +309,23 @@ async def export_pairs_to_gsheet(
     loop = asyncio.get_running_loop()
 
     rows: list[list[str]] = []
-    headers = ['Дата',
-               'Коллега 1', 'Была встреча?', 'Коммент',
-               'Коллега 2', 'Была встреча?', 'Коммент',
-               'Коллега 3', 'Была встреча?', 'Коммент']
+    headers = [PAIR_TABLE_HEADERS_TEXT['date'],
+               PAIR_TABLE_HEADERS_TEXT['user1'],
+               PAIR_TABLE_HEADERS_TEXT['feedback'],
+               PAIR_TABLE_HEADERS_TEXT['comment'],
+               PAIR_TABLE_HEADERS_TEXT['user2'],
+               PAIR_TABLE_HEADERS_TEXT['feedback'],
+               PAIR_TABLE_HEADERS_TEXT['comment'],
+               PAIR_TABLE_HEADERS_TEXT['user3'],
+               PAIR_TABLE_HEADERS_TEXT['feedback'],
+               PAIR_TABLE_HEADERS_TEXT['comment']]
     rows.append(headers)
 
     def get_feedback_data(fb: Feedback | None) -> tuple[str, str]:
         if fb is None:
             return ('', '')
-        met = 'да' if fb.did_meet else 'нет'
-        comment = fb.comment or '-'
+        met = P_V_TEXT['yes'] if fb.did_meet else P_V_TEXT['no']
+        comment = fb.comment or P_V_TEXT['dash']
         return (met, comment)
 
     for p in pairs:
@@ -407,7 +426,7 @@ async def broadcast_notif_to_active_users(
         logger.error(f'Ошибка при получении ID активных юзеров из БД: {e}')
         raise e
     if not user_telegram_ids:
-        return 0, 'Нет активных пользователей для отправки уведомления.'
+        return 0, ADMIN_TEXTS['no_active_users_for_notif']
 
     for telegram_id in user_telegram_ids:
         try:
@@ -432,10 +451,8 @@ async def broadcast_notif_to_active_users(
         except SQLAlchemyError as e:
             logger.error(f'Ошибка при работе с БД: {e}')
         return delivered_count, None
-    return delivered_count, (f'Не удалось отправить уведомление ни одному '
-                             f'из {len(user_telegram_ids)} пользователей.\n'
-                             'Попробуйте снова немного позже. При '
-                             'повторной неудаче обратитесь к разработчикам.')
+    return delivered_count, (ADMIN_TEXTS['unsuccess_notif'].format(
+                                amount=len(user_telegram_ids)))
 
 
 async def reset_user_pause_until(session: AsyncSession, user: User) -> None:
@@ -471,11 +488,9 @@ async def set_first_pairing_date(recieved_date: datetime):
                 current_interval.first_matching_date = recieved_date
                 await session.commit()
 
-            logger.info(f'Установленный интервал: {current_interval.value}\n'
-                        f'Записанная дата в БД: {
-                            current_interval.first_matching_date
-                        } (МСК-3)'
-                        )
+            logger.info(
+                f'Установленный интервал: {current_interval.value}\n'
+                f'Записанная дата в БД: {current_interval.first_matching_date} (UTC)')
     except SQLAlchemyError as e:
         await session.rollback()
         logger.error(f'Ошибка при установке интервала и даты: {e}')
@@ -505,13 +520,12 @@ async def set_user_as_admin(user_id: int) -> bool:
                 await session.commit()
                 return True
             else:
-                logger.warning(f"Пользователь с ID {user_id} не найден.")
+                logger.warning(f'Пользователь с ID {user_id} не найден.')
                 return False
     except Exception as e:
         logger.error(
-            f"Ошибка при установке администратора "
-            f"для пользователя {user_id}: {e}"
-        )
+            f'Ошибка при установке администратора '
+            f'для пользователя {user_id}: {e}')
         return False
 
 
@@ -541,12 +555,12 @@ async def set_admin_as_user(user_id: int) -> tuple[bool, Optional[User]]:
                 await session.commit()
                 return (True, user)
             else:
-                logger.warning(f"Пользователь с ID {user_id} не найден.")
+                logger.warning(f'Пользователь с ID {user_id} не найден.')
                 return (False, None)
     except Exception as e:
         logger.error(
-            f"Ошибка при изменении статуса администратора для "
-            f"пользователя {user_id}: {e}"
+            'Ошибка при изменении статуса администратора для '
+            f'пользователя {user_id}: {e}'
         )
         return (False, None)
 
@@ -572,8 +586,8 @@ async def is_user_admin(user_id: int) -> bool:
             return user is not None and user.is_admin
     except Exception as e:
         logger.error(
-            f"Ошибка при проверке статуса администратора для "
-            f"пользователя {user_id}: {e}"
+            'Ошибка при проверке статуса администратора для '
+            f'пользователя {user_id}: {e}'
         )
         return False
 
@@ -600,8 +614,8 @@ async def is_admin_user(user_id: int) -> bool:
             return user is not None and not user.is_admin
     except Exception as e:
         logger.error(
-            f"Ошибка при проверке статуса администратора для "
-            f"пользователя {user_id}: {e}"
+            'Ошибка при проверке статуса администратора для '
+            f'пользователя {user_id}: {e}'
         )
         return False
 
@@ -615,14 +629,13 @@ async def get_admin_list() -> list:
     """
     try:
         async with AsyncSessionLocal() as session:
-            # Получаем всех пользователей с флагом is_admin=True
             result = await session.execute(
                 select(User).filter_by(is_admin=True)
             )
             admins = result.scalars().all()
             return admins
     except Exception as e:
-        logger.error(f"Ошибка при получении списка администраторов: {e}")
+        logger.error(f'Ошибка при получении списка администраторов: {e}')
         return []
 
 
@@ -647,17 +660,15 @@ async def notify_users_about_pairs(session: AsyncSession,
 
     def make_link(u: User) -> str:
         name = html.escape(
-            f'{u.first_name or "Пользователь"} {u.last_name or ""}'.strip())
+            f'{u.first_name or USER_TEXTS['instead_name']} '
+            f'{u.last_name or ""}'.strip())
         if u.username:
-            return (
-                f'👥 <a href="tg://user?id={u.telegram_id}">{name}</a> '
-                f'(если имя некликабельно, попробуй так: @{u.username})'
-            )
-        return (
-            f'👥 <a href="tg://user?id={u.telegram_id}">{name}</a> '
-            '(если имя некликабельно, это означает, что пользователь '
-            'запретил его упоминать, но ты можешь найти его в нашей группе)'
-        )
+            return (USER_TEXTS['link_to_user_with_username'].format(
+                telegram_id=u.telegram_id, name=name, username=u.username
+            ))
+        return (USER_TEXTS['link_to_user_with_username'].format(
+                telegram_id=u.telegram_id, name=name
+        ))
 
     for pair in pairs:
         user_ids = [pair.user1_id, pair.user2_id]
@@ -672,20 +683,14 @@ async def notify_users_about_pairs(session: AsyncSession,
 
             partner_links = [
                 make_link(users[p]) if (p in users and users[p].telegram_id)
-                else "неизвестный пользователь"
+                else USER_TEXTS['unknown_user']
                 for p in user_ids if p != user_id
             ]
 
             partners_str = ",\n".join(partner_links)
 
-            message = (
-                'Привет! 🤗\n'
-                'На этот раз тебе выпала возможность пообщаться с:\n'
-                f'{partners_str}\n\n'
-                'Пожалуйста, свяжитесь друг с другом и договорись о встрече '
-                'в любом удобном формате.\n\n'
-                'Прекрасной рабочей недели!'
-            )
+            message = USER_TEXTS['massage_about_new_pair'].format(
+                partners_str=partners_str)
 
             try:
                 logger.debug(f'Отправляем сообщение: {message}')
@@ -754,16 +759,20 @@ async def feedback_dispatcher_job(bot: Bot, session_maker):
                         continue
                     name = ' '.join(filter(None, (p.first_name, p.last_name)))
                     if not name:
-                        name = 'коллега'
+                        name = USER_TEXTS['instead_name']
                     partner_names.append(name)
                 if partner_names:
                     if len(partner_names) == 1:
-                        partners_text = f'с коллегой {partner_names[0]}'
+                        partners_text = (
+                            USER_TEXTS['fb_with_one_user'] + partner_names[0])
                     else:
-                        partners_text = 'с коллегами ' + ', '.join(partner_names)
-                    text = f'Привет! Прошла ли встреча {partners_text}?'
+                        partners_text = (
+                            USER_TEXTS['fb_with_two_users'
+                                       ] + ', '.join(partner_names))
+                    text = USER_TEXTS['ask_feedback_with_names'
+                                      ].format(partners_text=partners_text)
                 else:
-                    text = 'Привет! Прошла ли встреча?'
+                    text = USER_TEXTS['ask_feedback_without_names']
 
                 try:
                     await bot.send_message(

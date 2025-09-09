@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from database.db import AsyncSessionLocal
 from services.user_service import get_user_by_telegram_id
-from texts import TEXTS
+from texts import USER_TEXTS
 
 
 logger = logging.getLogger(__name__)
@@ -66,18 +66,18 @@ class AccessMiddleware(BaseMiddleware):
                 logger.info('Юзера нет в группе. Отказ в доступе.')
                 if event.message:
                     await event.message.answer(
-                        TEXTS['deny_access'],
+                        USER_TEXTS['deny_access'],
                         reply_markup=ReplyKeyboardRemove())
                 elif event.callback_query:
-                    await event.callback_query.answer(TEXTS['deny_access'],
+                    await event.callback_query.answer(USER_TEXTS['deny_access'],
                                                       show_alert=True)
                 return
         except Exception as e:
             logging.error('Ошибка при проверке членства: %s', e)
             if event.message:
-                await event.message.answer(TEXTS['error_access'])
+                await event.message.answer(USER_TEXTS['error_access'])
             elif event.callback_query:
-                await event.callback_query.answer(TEXTS['error_access'],
+                await event.callback_query.answer(USER_TEXTS['error_access'],
                                                   show_alert=True)
             return
 
@@ -96,18 +96,18 @@ class AccessMiddleware(BaseMiddleware):
                         logger.info('У юзера нет разрешения. Отказ в доступе.')
                         if event.message:
                             await event.message.answer(
-                                TEXTS['no_permission'],
+                                USER_TEXTS['no_permission'],
                                 reply_markup=ReplyKeyboardRemove())
                         elif event.callback_query:
                             await event.callback_query.answer(
-                                TEXTS['no_permission'], show_alert=True)
+                                USER_TEXTS['no_permission'], show_alert=True)
                         return
         except SQLAlchemyError:
             logger.error('Ошибка при работе с базой данных')
             if event.message:
-                await event.message.answer(TEXTS['db_error'])
+                await event.message.answer(USER_TEXTS['db_error'])
             elif event.callback_query:
-                await event.callback_query.answer(TEXTS['db_error'],
+                await event.callback_query.answer(USER_TEXTS['db_error'],
                                                   show_alert=True)
             return
         logger.debug(f'У юзера есть разрешение. Апдейт передан в хэндлеры. '

@@ -36,9 +36,7 @@ super_admin_router.callback_query.filter(SuperAdminCallbackFilter())
 
 @super_admin_router.message(Command('add_admin'), StateFilter(default_state))
 async def cmd_add_admin(message: Message, state: FSMContext):
-    '''
-    Хэндлер для команды добаления админа командой /add_admin.
-    '''
+    """Хэндлер для команды добаления админа командой /add_admin."""
     await message.answer(ADMIN_TEXTS['prompt_for_user_id'])
     await state.set_state(FSMAdminPanel.waiting_for_user_id)
 
@@ -48,18 +46,14 @@ async def cmd_add_admin(message: Message, state: FSMContext):
     StateFilter(FSMAdminPanel.waiting_for_user_id)
 )
 async def cancel_admin_handler(message: Message, state: FSMContext):
-    '''
-    Хэндлер для остановки добавления админа командой /cancel.
-    '''
+    """Хэндлер для остановки добавления админа командой /cancel."""
     await state.clear()
     await message.answer(ADMIN_TEXTS['creation_cancelled'])
 
 
 @super_admin_router.message(StateFilter(FSMAdminPanel.waiting_for_user_id))
 async def process_user_id(message: Message, state: FSMContext):
-    '''
-    Хэндлер для ввода ID пользователя, которого хотим сделать админом.
-    '''
+    """Хэндлер для ввода ID пользователя, которого хотим сделать админом."""
     if message.text in KEYBOARD_BUTTON_TEXTS.values():
         await message.answer(ADMIN_TEXTS['no_kb_buttons'])
         await message.answer(ADMIN_TEXTS['prompt_for_user_id'])
@@ -79,8 +73,7 @@ async def process_user_id(message: Message, state: FSMContext):
 
         if success:
             await message.answer(
-                f"Пользователь с ID {user_id} теперь админ."
-            )
+                ADMIN_TEXTS['user_is_admin_now'].format(user_id=user_id))
 
             key = StorageKey(
                 user_id=user_id,
@@ -99,9 +92,11 @@ async def process_user_id(message: Message, state: FSMContext):
 
             await state.clear()
         else:
-            await message.answer(f"Пользователь с ID {user_id} не найден.  Проверьте и отправьте новый ID.\n\nЧтобы отменить действие, отправьте /cancel.")
+            await message.answer(
+                ADMIN_TEXTS['user_for_admin_is_not_find'
+                            ].format(user_id=user_id))
     else:
-        logger.debug("Было введено не ID пользователя.")
+        logger.debug('Было введено не ID пользователя.')
         await message.answer(ADMIN_TEXTS['invalid_user_id_input'])
 
 
@@ -110,9 +105,7 @@ async def process_user_id(message: Message, state: FSMContext):
     StateFilter(default_state)
 )
 async def cmd_remove_admin(message: Message, state: FSMAdminPanel):
-    '''
-    Хэндлер для удаления не главного админа командой /remove_admin.
-    '''
+    """Хэндлер для удаления не главного админа командой /remove_admin."""
     await message.answer(ADMIN_TEXTS['prompt_for_admin_id'])
     await state.set_state(FSMAdminPanel.waiting_for_admin_id)
 
@@ -122,18 +115,14 @@ async def cmd_remove_admin(message: Message, state: FSMAdminPanel):
     StateFilter(FSMAdminPanel.waiting_for_admin_id)
 )
 async def cancel_user_handler(message: Message, state: FSMContext):
-    '''
-    Остановка удаления не главного админа командой /cancel.
-    '''
+    """Остановка удаления не главного админа командой /cancel."""
     await state.clear()
     await message.answer(ADMIN_TEXTS['deletion_cancelled'])
 
 
 @super_admin_router.message(StateFilter(FSMAdminPanel.waiting_for_admin_id))
 async def process_admin_id(message: Message, state: FSMContext):
-    '''
-    Ввод ID не главного админа которого хочешь удалить.
-    '''
+    """Ввод ID не главного админа которого хочешь удалить."""
     if message.text in KEYBOARD_BUTTON_TEXTS.values():
         await message.answer(ADMIN_TEXTS['no_kb_buttons'])
         await message.answer(ADMIN_TEXTS['prompt_for_admin_id'])
@@ -156,8 +145,7 @@ async def process_admin_id(message: Message, state: FSMContext):
             keyboard = (create_active_user_keyboard() if user.is_active
                         else create_inactive_user_keyboard())
             await message.answer(
-                f"Пользователь с ID {user_id} теперь обычный пользователь."
-            )
+                ADMIN_TEXTS['admin_is_user_now'].format(user_id=user_id))
 
             key = StorageKey(
                 user_id=user_id,
@@ -170,15 +158,17 @@ async def process_admin_id(message: Message, state: FSMContext):
             await delete_main_menu(message.bot, user_id)
             await message.bot.send_message(
                 user_id,
-                "Ты больше не являешься админом Random Coffee.",
+                ADMIN_TEXTS['no_admin_anymore'],
                 reply_markup=keyboard)
             await state.clear()
 
         else:
-            await message.answer(f"Админ с ID {user_id} не найден. Проверьте и отправьте новый ID.\n\nЧтобы отменить действие, отправьте /cancel.")
+            await message.answer(
+                ADMIN_TEXTS['admin_for_user_is_not_found'
+                            ].format(user_id=user_id))
 
     else:
-        logger.debug("Было введено не ID администратора.")
+        logger.debug('Было введено не ID администратора.')
         await message.answer(
             ADMIN_TEXTS['invalid_admin_id']
         )
@@ -186,22 +176,22 @@ async def process_admin_id(message: Message, state: FSMContext):
 
 @super_admin_router.message(Command('admin_list'), StateFilter(default_state))
 async def admin_list_handler(message: Message):
-    '''
-    Хэндлер для команды /admin_list, выводит список всех администраторов.
-    '''
+    """Хэндлер для команды /admin_list, выводит список всех администраторов."""
     admins = await get_admin_list()
 
     if not admins:
-        await message.answer("Список админов пуст.")
+        await message.answer(ADMIN_TEXTS['empty_admin_list'])
         return
 
     admin_ids = [
-        f"ID: {admin.telegram_id} - {admin.first_name} {admin.last_name or ''}"
+        f'ID: {admin.telegram_id} - {admin.first_name} {admin.last_name or " "}'
         for admin in admins
     ]
-    admin_list_message = "\n".join(admin_ids)
+    admin_list_message = '\n'.join(admin_ids)
 
-    await message.answer(f"Список админов:\n{admin_list_message}")
+    await message.answer(
+        ADMIN_TEXTS['admin_list'].format(
+            admin_list_message=admin_list_message))
 
 
 # Служебный хэндлер на время разработки

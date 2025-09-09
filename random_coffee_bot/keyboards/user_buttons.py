@@ -39,10 +39,10 @@ button_how_it_works_inactive = KeyboardButton(
 def create_deactivate_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['yes'],
-                              callback_data="confirm_deactivate_yes"
+                              callback_data='confirm_deactivate_yes'
                               ),
          InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['no'],
-                              callback_data="confirm_deactivate_no"
+                              callback_data='confirm_deactivate_no'
                               )]
     ])
     return keyboard
@@ -51,10 +51,10 @@ def create_deactivate_keyboard():
 def create_activate_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['yes'],
-                              callback_data="confirm_activate_yes"
+                              callback_data='confirm_activate_yes'
                               ),
          InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['no'],
-                              callback_data="confirm_activate_no"
+                              callback_data='confirm_activate_no'
                               )]
     ])
     return keyboard
@@ -76,9 +76,9 @@ def generate_inline_confirm_change_interval():
 
 
 def create_active_user_keyboard():
-    '''
+    """
     Функция для создания клавиатуры для активных пользователей.
-    '''
+    """
     buttons_kb_builder_user = ReplyKeyboardBuilder()
     buttons_kb_builder_user.row(
         button_change_my_details,
@@ -93,9 +93,9 @@ def create_active_user_keyboard():
 
 
 def create_inactive_user_keyboard():
-    '''
+    """
     Функция для создания клавиатуры для неактивных пользователей.
-    '''
+    """
     buttons_kb_builder_user = ReplyKeyboardBuilder()
     buttons_kb_builder_user.row(
         button_resume_participation,
@@ -106,9 +106,9 @@ def create_inactive_user_keyboard():
 
 
 def generate_inline_interval():
-    '''
+    """
     Инлайн-клавиатура для выбора интервала встреч.
-    '''
+    """
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
@@ -135,10 +135,10 @@ def generate_inline_interval():
 def yes_or_no_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['yes'],
-                              callback_data="change_my_details_yes"
+                              callback_data='change_my_details_yes'
                               ),
          InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['no'],
-                              callback_data="change_my_details_no"
+                              callback_data='change_my_details_no'
                               )]
     ])
     return keyboard
@@ -146,21 +146,28 @@ def yes_or_no_keyboard():
 
 def meeting_question_kb(pair_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Да", callback_data=f"meeting_yes:{pair_id}")],
-        [InlineKeyboardButton(text="❌ Нет", callback_data=f"meeting_no:{pair_id}")]
+        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['yes'],
+                              callback_data=f'meeting_yes:{pair_id}')],
+        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['no'],
+                              callback_data=f'meeting_no:{pair_id}')]
     ])
 
 
 def comment_question_kb(feedback_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['leave_comment'], callback_data=f"leave_comment:{feedback_id}")],
-        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['no_comment'], callback_data=f"no_comment:{feedback_id}")]
+        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['leave_comment'],
+                              callback_data=f'leave_comment:{feedback_id}')],
+        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['no_comment'],
+                              callback_data=f'no_comment:{feedback_id}')]
     ])
 
 
 def confirm_edit_comment_kb(feedback_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['save_comment'], callback_data=f"save_comment:{feedback_id}")],
-        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['adit_comment'], callback_data=f"confirm_edit:{feedback_id}")],
-        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['cancel_comment'], callback_data=f"cancel_comment:{feedback_id}")]
+        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['save_comment'],
+                              callback_data=f'save_comment:{feedback_id}')],
+        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['adit_comment'],
+                              callback_data=f'confirm_edit:{feedback_id}')],
+        [InlineKeyboardButton(text=INLINE_BUTTON_TEXTS['cancel_comment'],
+                              callback_data=f'cancel_comment:{feedback_id}')]
     ])

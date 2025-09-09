@@ -17,6 +17,7 @@ from database.models import User, Pair, Setting
 from services.admin_service import (feedback_dispatcher_job,
                                     notify_users_about_pairs)
 from services.constants import DATE_TIME_FORMAT_LOCALTIME
+from texts import ADMIN_TEXTS
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ config = load_config()
 bot_timezone = config.time.zone
 db_url = config.db.db_url
 
-DATABASE_URL = db_url.replace("+asyncpg", "+psycopg")
+DATABASE_URL = db_url.replace('+asyncpg', '+psycopg')
 
 scheduler = AsyncIOScheduler(
     jobstores={
@@ -40,6 +41,7 @@ async def feedback_dispatcher_wrapper():
     bot, dispatcher, session_maker = job_context.get_context()
     await feedback_dispatcher_job(bot, session_maker)
 
+
 async def auto_pairing_wrapper():
     bot, dispatcher, session_maker = job_context.get_context()
 
@@ -48,17 +50,20 @@ async def auto_pairing_wrapper():
         setting_obj = result.scalar_one_or_none()
 
         if setting_obj and setting_obj.auto_pairing_paused == 1:
-            logger.info("🛑 Задача auto_pairing_weekly приостановлена (флаг в настройках).")
+            logger.info('🛑 Задача auto_pairing_weekly приостановлена '
+                        '(флаг в настройках).')
             return
 
     await auto_pairing(session_maker, bot)
+
 
 async def reload_scheduled_wrapper():
     _, _, session_maker = job_context.get_context()
     await reload_scheduled_jobs(session_maker)
 
 
-async def get_latest_pair_id_for_user(session: AsyncSession, user_id: int) -> int | None:
+async def get_latest_pair_id_for_user(session: AsyncSession, user_id: int
+                                      ) -> int | None:
     result = await session.execute(
         select(Pair.id)
         .where(
@@ -76,10 +81,12 @@ async def get_latest_pair_id_for_user(session: AsyncSession, user_id: int) -> in
     pair_id = result.scalar_one_or_none()
     return pair_id
 
+
 async def get_users_ready_for_matching(session: AsyncSession) -> list[User]:
     """Выбираем пользователей для участия в формировании пар по правилам."""
 
-    result = await session.execute(select(Setting).filter_by(key='global_interval'))
+    result = await session.execute(select(Setting)
+                                   .filter_by(key='global_interval'))
     setting = result.scalars().first()
     global_interval = setting.value if setting else 2
 
@@ -115,7 +122,8 @@ async def get_users_ready_for_matching(session: AsyncSession) -> list[User]:
 async def generate_unique_pairs(session, users: list[User]) -> list[Pair]:
     """Формирует пары, минимизируя количество повторений."""
 
-    result = await session.execute(select(Pair.user1_id, Pair.user2_id, Pair.user3_id))
+    result = await session.execute(
+        select(Pair.user1_id, Pair.user2_id, Pair.user3_id))
     history = defaultdict(int)  # (min_id, max_id) -> count
 
     for row in result.fetchall():
@@ -170,7 +178,7 @@ async def generate_unique_pairs(session, users: list[User]) -> list[Pair]:
             last_pair.user3_id = odd.id
             session.add(last_pair)
         else:
-            logger.info(f"⚠️ Один пользователь остался без пары: {odd.id}")
+            logger.info(f'⚠️ Один пользователь остался без пары: {odd.id}')
 
     return pair_objs
 
@@ -179,25 +187,26 @@ async def auto_pairing(session_maker, bot: Bot):
     async with session_maker() as session:
         users = await get_users_ready_for_matching(session)
         if len(users) < 2:
-            logger.info("❗ Недостаточно пользователей для формирования пар.")
+            logger.info('❗ Недостаточно пользователей для формирования пар.')
             return
 
         pairs = await generate_unique_pairs(session, users)
 
         await session.commit()
-        logger.info(f"✅ Сформировано {len(pairs)} пар.")
+        logger.info(f'✅ Сформировано {len(pairs)} пар.')
 
         await notify_users_about_pairs(session, pairs, bot)
 
 
 # отображение для консоли
 def show_next_runs(scheduler: AsyncIOScheduler):
-    logger.debug("🔔 Расписание ближайших запусков задач:")
+    logger.debug('🔔 Расписание ближайших запусков задач:')
 
     for job in scheduler.get_jobs():
         next_run_utc = job.next_run_time
         next_run_localtime = next_run_utc.astimezone(bot_timezone)
-        logger.debug(f"🛠 Задача '{job.id}' запустится в: {next_run_localtime.strftime(DATE_TIME_FORMAT_LOCALTIME) if next_run_localtime else 'нет запланированного запуска'}")
+        logger.debug(f'🛠 Задача "{job.id}" запустится в: '
+                     f'{next_run_localtime.strftime(DATE_TIME_FORMAT_LOCALTIME) if next_run_localtime else "нет запланированного запуска"}')
 
 
 async def get_next_pairing_date() -> str | None:
@@ -205,7 +214,8 @@ async def get_next_pairing_date() -> str | None:
     Возвращает дату, когда состоится следующее формирование пар
     согласно планировщику задач.
     """
-    job = next((job for job in scheduler.get_jobs() if job.id == 'auto_pairing_weekly'), None)
+    job = next((job for job in scheduler.get_jobs()
+                if job.id == 'auto_pairing_weekly'), None)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(Setting))
@@ -217,10 +227,12 @@ async def get_next_pairing_date() -> str | None:
         next_run_str = next_run_localtime.strftime(DATE_TIME_FORMAT_LOCALTIME)
 
         if setting_obj and setting_obj.auto_pairing_paused == 1:
-            logger.info(f"🛠 Паринг остановлен. Но задача '{job.id}' запланирована на: {next_run_str}")
-            return f'формирование пар приостановлено (если возобновить: {next_run_str})'
+            logger.info(f'🛠 Паринг остановлен. Но задача {job.id} '
+                        'запланирована на: {next_run_str}')
+            return ADMIN_TEXTS['pairing_on_pause'
+                               ].format(next_run_str=next_run_str)
         else:
-            logger.debug(f"🛠 Задача '{job.id}' запустится: {next_run_str}")
+            logger.debug(f'🛠 Задача {job.id} запустится: {next_run_str}')
             return next_run_str
     return None
 
@@ -230,7 +242,8 @@ def job_listener(event):
     show_next_runs(scheduler)
 
 
-async def schedule_feedback_dispatcher_for_auto_pairing(start_date_for_auto_pairing):
+async def schedule_feedback_dispatcher_for_auto_pairing(
+        start_date_for_auto_pairing):
     start_date_for_feedback_dispatcher = start_date_for_auto_pairing - timedelta(minutes=3)  # Для прода должно стоять days
     return start_date_for_feedback_dispatcher
 
@@ -246,7 +259,7 @@ def schedule_or_reschedule(job_id, func, recieved_interval, session_maker,
         current_job_interval = job.trigger.interval.total_seconds() // 60  # Для тестирования в часах 3600, для прода 86400
         if (int(current_job_interval) != recieved_interval or
                 job.misfire_grace_time != misfire_grace_time):
-            next_run_time = getattr(job, "next_run_time", None)
+            next_run_time = getattr(job, 'next_run_time', None)
             if next_run_time:
                 new_start_date = next_run_time + timedelta(minutes=int(recieved_interval))  # Для прода должно стоять days
             else:
@@ -254,29 +267,32 @@ def schedule_or_reschedule(job_id, func, recieved_interval, session_maker,
 
             scheduler.modify_job(
                 job_id,
-                trigger=IntervalTrigger(minutes=recieved_interval, start_date=new_start_date),  # Для прода должно стоять days
+                trigger=IntervalTrigger(minutes=recieved_interval,
+                                        start_date=new_start_date),  # Для прода должно стоять days
                 misfire_grace_time=misfire_grace_time
             )
             logger.info(
-                f"🕒 '{job_id}' будет перезапущена с новым интервалом {recieved_interval} начиная с {new_start_date}, grace_time={misfire_grace_time}")
+                f'🕒 {job_id} будет перезапущена с новым интервалом {recieved_interval} начиная с {new_start_date}, grace_time={misfire_grace_time}')
         else:
-            logger.info(f"✅ '{job_id}' уже запланирована с интервалом {recieved_interval} и grace_time={misfire_grace_time}")
+            logger.info(f'✅ {job_id} уже запланирована с интервалом {recieved_interval} и grace_time={misfire_grace_time}')
     else:
         scheduler.add_job(
             func,
-            trigger=IntervalTrigger(minutes=recieved_interval, start_date=effective_start),  # Для прода должно стоять days
+            trigger=IntervalTrigger(minutes=recieved_interval,
+                                    start_date=effective_start),  # Для прода должно стоять days
             id=job_id,
             replace_existing=True,
             misfire_grace_time=misfire_grace_time,
         )
-        print(f"🆕 '{job_id}' создана. Старт: {effective_start}")
+        logger.info(f'🆕 {job_id} создана. Старт: {effective_start}')
 
 
 async def schedule_feedback_jobs(session_maker):
     global current_interval
 
     async with session_maker() as session:
-        result = await session.execute(select(Setting).where(Setting.key == "global_interval"))
+        result = await session.execute(
+            select(Setting).where(Setting.key == 'global_interval'))
         setting = result.scalar_one_or_none()
 
         setting_interval = int(setting.value) if setting and setting.value else 2
@@ -293,35 +309,51 @@ async def schedule_feedback_jobs(session_maker):
         scheduler.start()
 
     if current_interval != setting_interval:
-        print(f"🔁 Интервал изменился: {current_interval} ➡️ {setting_interval}")
+        logger.info(
+            f'🔁 Интервал изменился: {current_interval} ➡️ {setting_interval}')
         current_interval = setting_interval
 
     start_date_for_auto_pairing = start_date
-    schedule_or_reschedule("auto_pairing_weekly", auto_pairing_wrapper, interval_for_job, session_maker,
-                           start_date=start_date_for_auto_pairing, misfire_grace_time=120)  # Для прода: misfire_grace_time=172800 (для теста 7200 - 2 часа)
+    schedule_or_reschedule('auto_pairing_weekly',
+                           auto_pairing_wrapper,
+                           interval_for_job,
+                           session_maker,
+                           start_date=start_date_for_auto_pairing,
+                           misfire_grace_time=120)  # Для прода: misfire_grace_time=172800 (для теста 7200 - 2 часа)
 
     start_date_for_feedback_dispatcher = await schedule_feedback_dispatcher_for_auto_pairing(
         start_date_for_auto_pairing)
-    schedule_or_reschedule("feedback_dispatcher", feedback_dispatcher_wrapper, interval_for_job, session_maker,
-                           start_date=start_date_for_feedback_dispatcher, misfire_grace_time=None)
+    schedule_or_reschedule('feedback_dispatcher',
+                           feedback_dispatcher_wrapper,
+                           interval_for_job,
+                           session_maker,
+                           start_date=start_date_for_feedback_dispatcher,
+                           misfire_grace_time=None)
 
-    schedule_or_reschedule("reload_jobs_checker", reload_scheduled_wrapper, 1, session_maker,
-                           start_date=start_date_for_auto_pairing, misfire_grace_time=60)  # Для прода: misfire_grace_time=86400 (для теста 3600 - 1 час)
+    schedule_or_reschedule('reload_jobs_checker',
+                           reload_scheduled_wrapper,
+                           1,
+                           session_maker,
+                           start_date=start_date_for_auto_pairing,
+                           misfire_grace_time=60)  # Для прода: misfire_grace_time=86400 (для теста 3600 - 1 час)
 
     show_next_runs(scheduler)
 
 
 async def reload_scheduled_jobs(session_maker):
     async with session_maker() as session:
-        result = await session.execute(select(Setting).where(Setting.key == "global_interval"))
+        result = await session.execute(
+            select(Setting).where(Setting.key == 'global_interval'))
         setting = result.scalar_one_or_none()
         new_interval = int(setting.value) if setting and setting.value else 2
 
     global current_interval
     if current_interval != new_interval:
-        logger.info(f"🔁 Интервал изменился: {current_interval} ➡️ {new_interval}")
+        logger.info(
+            f'🔁 Интервал изменился: {current_interval} ➡️ {new_interval}')
         current_interval = new_interval
 
         await schedule_feedback_jobs(session_maker)
     else:
-        logger.debug("✅ Интервал не изменился. Задачи остаются с прежним интервалом.")
+        logger.debug(
+            '✅ Интервал не изменился. Задачи остаются с прежним интервалом.')

@@ -22,8 +22,8 @@ load_dotenv()
 
 async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int
                                   ) -> Optional[User]:
-    '''Получает из БД экземпляр пользователя по его telegram_id.
-    Если пользователь найден, возвращает его экземпляр. В ином случае - None'''
+    """Получает из БД экземпляр пользователя по его telegram_id.
+    Если пользователь найден, возвращает его экземпляр. В ином случае - None"""
     if not isinstance(telegram_id, int):
         try:
             telegram_id = int(telegram_id)
@@ -41,7 +41,7 @@ async def create_user(session: AsyncSession,
                       username: str | None,
                       first_name: str,
                       last_name: str | None) -> User:
-    '''Создает пользователя. Возвращает экземпляр пользователя.'''
+    """Создает пользователя. Возвращает экземпляр пользователя."""
     user = User(
                 telegram_id=telegram_id,
                 username=username,
@@ -61,8 +61,8 @@ async def update_user_field(session: AsyncSession,
                             telegram_id: int,
                             field: str,
                             value: str) -> bool:
-    '''Обновляет заданное поле пользователя.
-    Возвращает True, если пользователь найден и обновлен.'''
+    """Обновляет заданное поле пользователя.
+    Возвращает True, если пользователь найден и обновлен."""
     try:
         user = await get_user_by_telegram_id(session, telegram_id)
         if not user:
@@ -79,8 +79,8 @@ async def set_user_active(session: AsyncSession,
                           telegram_id: int,
                           is_active: bool
                           ) -> bool:
-    '''Изменяет значение флага is_active.
-    Возвращает True, если пользователь найден и обновлен.'''
+    """Изменяет значение флага is_active.
+    Возвращает True, если пользователь найден и обновлен."""
     try:
         user = await get_user_by_telegram_id(session, telegram_id)
         if not user:
@@ -94,9 +94,9 @@ async def set_user_active(session: AsyncSession,
 
 
 async def create_text_random_coffee(session: AsyncSession):
-    '''
+    """
     Создает текст для описание проекта Random_coffee.
-    '''
+    """
     interval = await get_global_interval(session)
 
     message = USER_TEXTS['random_coffee_bot'].format(
@@ -108,22 +108,22 @@ async def create_text_random_coffee(session: AsyncSession):
 async def create_text_status_active(
     session: AsyncSession, user_id: int
 ) -> str:
-    '''
-    Создает текст с информацией для кнопки "Мой статус участия".
-    '''
+    """
+    Создает текст с информацией для кнопки 'Мой статус участия'.
+    """
     user = await get_user_by_telegram_id(session, user_id)
 
     if user is None:
-        return "Пользователь не найден."
+        return USER_TEXTS['error_find_user']
 
-    first_name = user.first_name or "Не указано"
-    last_name = user.last_name or "Не указано"
-    username = (user.username or
-                'не задан (рекомендуем задать в настройках Телеграма)')
+    first_name = user.first_name or USER_TEXTS['no_data']
+    last_name = user.last_name or USER_TEXTS['no_data']
+    username = user.username or USER_TEXTS['no_username']
     meetings = user.pairing_interval
     status = user.is_active
 
-    status_text = "Активен" if status else "Неактивен"
+    status_text = (USER_TEXTS['status_active_true'] if status
+                   else USER_TEXTS['status_active_false'])
     interval_text = (
         INTERVAL_TEXTS.get(str(meetings),
                            INTERVAL_TEXTS['default'])
@@ -150,10 +150,10 @@ async def create_text_status_active(
 async def create_text_with_default_interval(
     session: AsyncSession, text: str, user_id: int
 ) -> str:
-    '''
+    """
     Создает текст для ответа, когда пользователь
     передумал менять интервал встреч.
-    '''
+    """
     admin_current_interval = await get_global_interval(session)
     user_current_interval = await get_user_interval(session, user_id)
 
@@ -182,9 +182,9 @@ async def create_text_with_default_interval(
 async def create_text_for_select_an_interval(
     session: AsyncSession, text: str
 ) -> str:
-    '''
+    """
     Создает текст для выбора интервала встреч.
-    '''
+    """
     admin_current_interval = await get_global_interval(session)
 
     data_text = text.format(
@@ -196,10 +196,10 @@ async def create_text_for_select_an_interval(
 async def create_text_with_interval(
     session: AsyncSession, text: str, user_id: int
 ) -> str:
-    '''
+    """
     Создает текст для ответа когда пользоватеь
     решил изменить интервал встреч.
-    '''
+    """
     admin_current_interval = await get_global_interval(session)
     user_current_interval = await get_user_interval(session, user_id)
 
@@ -233,11 +233,11 @@ async def create_text_with_interval(
 
 
 async def get_global_interval(session: AsyncSession) -> Optional[int]:
-    '''
+    """
     Возвращает из базы данных значение глобального интервала.
-    '''
+    """
     result = await session.execute(
-        select(Setting.value).where(Setting.key == "global_interval")
+        select(Setting.value).where(Setting.key == 'global_interval')
     )
     return result.scalar()
 
@@ -245,9 +245,9 @@ async def get_global_interval(session: AsyncSession) -> Optional[int]:
 async def get_user_interval(
     session: AsyncSession, user_id: int
 ) -> Optional[str]:
-    '''
+    """
     Возвращает из базы данных значение интервала которое поставил пользователь.
-    '''
+    """
     result = await session.execute(
         select(User.pairing_interval).where(User.telegram_id == user_id)
     )
@@ -258,12 +258,12 @@ async def get_user_interval(
 async def set_new_user_interval(
     session: AsyncSession, user_id: int, new_value: int | None
 ) -> None:
-    '''
+    """
     Изменяет значение интервала для конкретного пользователя в таблице users.
-    '''
+    """
     logger.info(
-        f"Попытка установить новый pairing_interval: "
-        f"{new_value} для пользователя с id {user_id}"
+        f'Попытка установить новый pairing_interval: '
+        f'{new_value} для пользователя с id {user_id}'
     )
 
     try:
@@ -285,8 +285,8 @@ async def set_new_user_interval(
         await session.commit()
 
         logger.info(
-            f"pairing_interval для пользователя с id "
-            f"{user_id} обновлён на {new_value}"
+            f'pairing_interval для пользователя с id '
+            f'{user_id} обновлён на {new_value}'
         )
 
     except SQLAlchemyError as e:
@@ -298,9 +298,9 @@ async def set_new_user_interval(
 
 
 def upload_to_drive(file_path, file_name):
-    '''
+    """
     Функция для работы с отправкой фото на гугл диск.
-    '''
+    """
     SCOPES = ['https://www.googleapis.com/auth/drive']
     SERVICE_ACCOUNT_FILE = 'random_coffee_bot/credentials.json'
 
@@ -322,7 +322,7 @@ def upload_to_drive(file_path, file_name):
         ).execute()
         return file.get('id')
     except Exception as e:
-        logger.error(f"Ошибка при загрузке файла: {e}")
+        logger.error(f'Ошибка при загрузке файла: {e}')
         return None
 
 

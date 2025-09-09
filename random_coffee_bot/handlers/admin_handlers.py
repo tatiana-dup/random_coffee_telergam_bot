@@ -40,7 +40,7 @@ from services import admin_service as adm
 from services.constants import DATE_FORMAT
 from services.user_service import create_user, get_user_by_telegram_id
 from states.admin_states import FSMAdminPanel
-from texts import ADMIN_TEXTS, COMMANDS_TEXT, KEYBOARD_BUTTON_TEXTS, TEXTS
+from texts import ADMIN_TEXTS, COMMANDS_TEXT, KEYBOARD_BUTTON_TEXTS
 
 from sqlalchemy import select
 from database.models import Setting
@@ -864,14 +864,14 @@ async def process_button_on_off(message: Message):
             setting_obj = setting.scalar_one_or_none()
 
             if setting_obj and setting_obj.auto_pairing_paused:
-                await message.answer((f'Статус: {next_pairing_date}.\n\n'
-                                      'Возобновить формирование пар?'),
-                                     reply_markup=generate_inline_pairing_on())
+                await message.answer(
+                    ADMIN_TEXTS['ask_for_pairing_on'].format(
+                        status=next_pairing_date),
+                    reply_markup=generate_inline_pairing_on())
             else:
-                await message.answer(('Статус: формирование пар активно.\n\n'
-                                      'Если вы остановите, то пары не будут формироваться, пока вы не возобновите это.\n\n'
-                                      'Остановить формирование пар?'),
-                                     reply_markup=generate_inline_pairing_off())
+                await message.answer(
+                    ADMIN_TEXTS['ask_for_pairing_off'],
+                    reply_markup=generate_inline_pairing_off())
     except SQLAlchemyError:
         logger.error('Ошибка при работе с базой данных')
         if isinstance(message, Message):
@@ -890,9 +890,11 @@ async def pause_pairing_handler(callback: CallbackQuery):
             if setting_obj and not setting_obj.auto_pairing_paused:
                 setting_obj.auto_pairing_paused = True
                 await session.commit()
-                await callback.message.edit_text("🛑 Формирование пар приостановлено.")
+                await callback.message.edit_text(
+                    ADMIN_TEXTS['notice_pairing_off'])
             else:
-                await callback.message.edit_text("ℹ️ Формирование пар уже приостановлено.")
+                await callback.message.edit_text(
+                    ADMIN_TEXTS['pairing_off_already'])
     except SQLAlchemyError:
         logger.error('Ошибка при работе с базой данных')
         await callback.message.answer(ADMIN_TEXTS['db_error'])
@@ -911,9 +913,12 @@ async def resume_pairing_handler(callback: CallbackQuery):
                 setting_obj.auto_pairing_paused = False
                 await session.commit()
                 next_pairing_date = await get_next_pairing_date()
-                await callback.message.edit_text(f"✅ Формирование пар возобновлено.\n\nДата ближайшего формирования пар {next_pairing_date}")
+                await callback.message.edit_text(
+                    ADMIN_TEXTS['notice_pairing_on'].format(
+                        next_pairing_date=next_pairing_date))
             else:
-                await callback.message.edit_text("ℹ️ Формирование пар уже активно.")
+                await callback.message.edit_text(
+                    ADMIN_TEXTS['pairing_on_already'])
     except SQLAlchemyError:
         logger.error('Ошибка при работе с базой данных')
         await callback.message.answer(ADMIN_TEXTS['db_error'])
@@ -923,18 +928,19 @@ async def resume_pairing_handler(callback: CallbackQuery):
 @admin_router.callback_query(F.data == 'cancel_changing_pairing_status',
                              StateFilter(default_state))
 async def process_cancel_pairing_off(callback: CallbackQuery):
-    await callback.message.edit_text('Изменение статуса формирования пар отменено.')
+    await callback.message.edit_text(
+        ADMIN_TEXTS['cancel_changing_pairing_status'])
     await callback.answer()
 
 
 @admin_router.message(Command('user_menu'), StateFilter(default_state))
-async def open_user_menu_to_admin(message: Message):    
+async def open_user_menu_to_admin(message: Message):
     """
     Хэндлер для добавления супер-админа в базу данных, чтобы он тоже
     стал участником встреч.
     """
     if message.from_user is None:
-        return await message.answer(TEXTS['error_access'])
+        return
 
     user_telegram_id = message.from_user.id
 
