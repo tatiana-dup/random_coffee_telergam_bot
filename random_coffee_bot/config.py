@@ -14,6 +14,7 @@ class TgBot:
     token: str
     group_tg_id: int
     admins_list: list
+    admin_username: str
 
 
 @dataclass
@@ -53,7 +54,8 @@ def load_config(path: str | None = None) -> Config:
         tg_bot=TgBot(
             token=env('BOT_TOKEN'),
             group_tg_id=env.int('TELEGRAM_ID_PROJECT_GROUP'),
-            admins_list=env.list('ADMIN_ID_LIST', subcast=int)
+            admins_list=env.list('ADMIN_ID_LIST', subcast=int),
+            admin_username=('ADMIN_TG_USERNAME')
         ),
         db=DatabaseConfig(
             db_url=env('DATABASE_URL')

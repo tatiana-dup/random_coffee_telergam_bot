@@ -12,14 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
 from database.db import AsyncSessionLocal
-from database.models import Feedback, Notification, Pair, Setting, User
-from keyboards.user_buttons import meeting_question_kb
+from database.models import Notification, Pair, Setting, User
 from services.constants import DATE_FORMAT, DATE_TIME_FORMAT_UTC
 from services.user_service import set_user_active
 from texts import (ADMIN_TEXTS,
                    INTERVAL_TEXTS,
                    PAIR_TABLE_HEADERS_TEXT,
-                   PAIR_TABLE_VALUES_TEXT as P_V_TEXT,
                    USER_TABLE_HEADERS_TEXT,
                    USER_TABLE_VALUES_TEXT as U_V_TEXT,
                    USER_TEXTS)
@@ -287,8 +285,7 @@ async def fetch_all_pairs(session: AsyncSession) -> Sequence[Pair]:
             .options(
                 selectinload(Pair.user1),
                 selectinload(Pair.user2),
-                selectinload(Pair.user3),
-                selectinload(Pair.feedbacks).selectinload(Feedback.user)
+                selectinload(Pair.user3)
             ).order_by(Pair.paired_at.desc())
         )
         pairs = result.scalars().all()
@@ -304,29 +301,16 @@ async def export_pairs_to_gsheet(
     """
     Записывает данные о парах в Гугл Таблицу.
     """
-    logger.info('Начинаем экспорт пар и отзывов.')
+    logger.info('Начинаем экспорт пар.')
     worksheet = pairs_sheet
     loop = asyncio.get_running_loop()
 
     rows: list[list[str]] = []
     headers = [PAIR_TABLE_HEADERS_TEXT['date'],
                PAIR_TABLE_HEADERS_TEXT['user1'],
-               PAIR_TABLE_HEADERS_TEXT['feedback'],
-               PAIR_TABLE_HEADERS_TEXT['comment'],
                PAIR_TABLE_HEADERS_TEXT['user2'],
-               PAIR_TABLE_HEADERS_TEXT['feedback'],
-               PAIR_TABLE_HEADERS_TEXT['comment'],
-               PAIR_TABLE_HEADERS_TEXT['user3'],
-               PAIR_TABLE_HEADERS_TEXT['feedback'],
-               PAIR_TABLE_HEADERS_TEXT['comment']]
+               PAIR_TABLE_HEADERS_TEXT['user3']]
     rows.append(headers)
-
-    def get_feedback_data(fb: Feedback | None) -> tuple[str, str]:
-        if fb is None:
-            return ('', '')
-        met = P_V_TEXT['yes'] if fb.did_meet else P_V_TEXT['no']
-        comment = fb.comment or P_V_TEXT['dash']
-        return (met, comment)
 
     for p in pairs:
         # для тестирования в часах и минутах:
@@ -334,35 +318,27 @@ async def export_pairs_to_gsheet(
         # pairing_date = pairing_date_utc.strftime('%Y-%m-%d %H:%M')
 
         pairing_date = p.paired_at.strftime(DATE_FORMAT)
-        fb_by_user = {fb.user_id: fb for fb in p.feedbacks}
         u1_full_name = (f'{p.user1.first_name or ""} {p.user1.last_name or ""}'
                         ).strip()
-        fb1 = fb_by_user.get(p.user1_id)
-        u1_did_met, u1_comment = get_feedback_data(fb1)
         u2_full_name = (f'{p.user2.first_name or ""} {p.user2.last_name or ""}'
                         ).strip()
-        fb2 = fb_by_user.get(p.user2_id)
-        u2_did_met, u2_comment = get_feedback_data(fb2)
         if p.user3_id:
             u3_full_name = (
                 f'{p.user3.first_name or ""} {p.user3.last_name or ""}'
             ).strip()
-            fb3 = fb_by_user.get(p.user3_id)
-            u3_did_met, u3_comment = get_feedback_data(fb3)
         else:
             u3_full_name = ''
-            u3_did_met = ''
-            u3_comment = ''
+
         rows.append([pairing_date,
-                    u1_full_name, u1_did_met, u1_comment,
-                    u2_full_name, u2_did_met, u2_comment,
-                    u3_full_name, u3_did_met, u3_comment])
+                    u1_full_name,
+                    u2_full_name,
+                    u3_full_name,])
 
     logger.info(f'Сформировано строк {len(rows)-1}')
 
     await loop.run_in_executor(None, worksheet.clear)
     await loop.run_in_executor(None, worksheet.append_rows, rows)
-    logger.info('Таблица пар с отзывами экспортирована.')
+    logger.info('Таблица пар экспортирована.')
 
 
 async def create_notif(session: AsyncSession, received_text: str
@@ -724,100 +700,100 @@ async def notify_users_about_pairs(session: AsyncSession,
                                  f'telegram_id={user.telegram_id}.')
 
 
-async def feedback_dispatcher_job(bot: Bot, session_maker):
-    async with session_maker() as session:
-        result_pairs = await session.execute(
-            select(Pair).where(Pair.feedback_sent.is_(False))
-        )
-        pairs = result_pairs.scalars().all()
+# async def feedback_dispatcher_job(bot: Bot, session_maker):
+#     async with session_maker() as session:
+#         result_pairs = await session.execute(
+#             select(Pair).where(Pair.feedback_sent.is_(False))
+#         )
+#         pairs = result_pairs.scalars().all()
 
-        if not pairs:
-            logger.info("ℹ️ Нет новых пар для отправки опроса.")
-            return
+#         if not pairs:
+#             logger.info("ℹ️ Нет новых пар для отправки опроса.")
+#             return
 
-        for pair in pairs:
-            user_ids = [pair.user1_id, pair.user2_id]
-            if pair.user3_id:
-                user_ids.append(pair.user3_id)
+#         for pair in pairs:
+#             user_ids = [pair.user1_id, pair.user2_id]
+#             if pair.user3_id:
+#                 user_ids.append(pair.user3_id)
 
-            result_users = await session.execute(
-                select(User).where(User.id.in_(user_ids),
-                                   User.has_permission.is_(True))
-            )
-            users = result_users.scalars().all()
+#             result_users = await session.execute(
+#                 select(User).where(User.id.in_(user_ids),
+#                                    User.has_permission.is_(True))
+#             )
+#             users = result_users.scalars().all()
 
-            if not users:
-                logger.info(f'Пара {pair.id}: нет участников, '
-                            'которым разрешено пользоваться ботом.')
-                continue
+#             if not users:
+#                 logger.info(f'Пара {pair.id}: нет участников, '
+#                             'которым разрешено пользоваться ботом.')
+#                 continue
 
-            kb = meeting_question_kb(pair.id)
-            for user in users:
-                partner_names = []
-                for p in users:
-                    if p.id == user.id:
-                        continue
-                    name = ' '.join(filter(None, (p.first_name, p.last_name)))
-                    if not name:
-                        name = USER_TEXTS['instead_name']
-                    partner_names.append(name)
-                if partner_names:
-                    if len(partner_names) == 1:
-                        partners_text = (
-                            USER_TEXTS['fb_with_one_user'] + partner_names[0])
-                    else:
-                        partners_text = (
-                            USER_TEXTS['fb_with_two_users'
-                                       ] + ', '.join(partner_names))
-                    text = USER_TEXTS['ask_feedback_with_names'
-                                      ].format(partners_text=partners_text)
-                else:
-                    text = USER_TEXTS['ask_feedback_without_names']
+#             kb = meeting_question_kb(pair.id)
+#             for user in users:
+#                 partner_names = []
+#                 for p in users:
+#                     if p.id == user.id:
+#                         continue
+#                     name = ' '.join(filter(None, (p.first_name, p.last_name)))
+#                     if not name:
+#                         name = USER_TEXTS['instead_name']
+#                     partner_names.append(name)
+#                 if partner_names:
+#                     if len(partner_names) == 1:
+#                         partners_text = (
+#                             USER_TEXTS['fb_with_one_user'] + partner_names[0])
+#                     else:
+#                         partners_text = (
+#                             USER_TEXTS['fb_with_two_users'
+#                                        ] + ', '.join(partner_names))
+#                     text = USER_TEXTS['ask_feedback_with_names'
+#                                       ].format(partners_text=partners_text)
+#                 else:
+#                     text = USER_TEXTS['ask_feedback_without_names']
 
-                try:
-                    await bot.send_message(
-                        user.telegram_id,
-                        text,
-                        reply_markup=kb
-                    )
-                    await asyncio.sleep(0.05)
-                except TelegramForbiddenError:
-                    logger.warning(f'Юзер {user.telegram_id} заблокировал бота.')
-                    try:
-                        await set_user_active(session, user.telegram_id, False)
-                        logger.info(f'Статус юзера {user.telegram_id} изменен '
-                                    'на неактивный.')
-                    except SQLAlchemyError:
-                        logger.exception('Не удалось изменить статус юзера '
-                                         f'{user.telegram_id} на неактивный.')
-                except TelegramBadRequest as e:
-                    if 'chat not found' in str(e).lower():
-                        logger.warning(f'Юзер {user.telegram_id} удалил чат с ботом.')
-                        try:
-                            await set_user_active(session, user.telegram_id, False)
-                            logger.info(f'Статус юзера {user.telegram_id} изменен '
-                                        'на неактивный.')
-                        except SQLAlchemyError:
-                            logger.exception('Не удалось изменить статус юзера '
-                                             f'{user.telegram_id} на неактивный.')
-                    else:
-                        logger.exception('⚠️ Не удалось отправить сообщение для '
-                                         f'telegram_id={user.telegram_id}.')
-                except Exception:
-                    logger.exception(f'Не удалось отправить опрос для {user.telegram_id}.')
+#                 try:
+#                     await bot.send_message(
+#                         user.telegram_id,
+#                         text,
+#                         reply_markup=kb
+#                     )
+#                     await asyncio.sleep(0.05)
+#                 except TelegramForbiddenError:
+#                     logger.warning(f'Юзер {user.telegram_id} заблокировал бота.')
+#                     try:
+#                         await set_user_active(session, user.telegram_id, False)
+#                         logger.info(f'Статус юзера {user.telegram_id} изменен '
+#                                     'на неактивный.')
+#                     except SQLAlchemyError:
+#                         logger.exception('Не удалось изменить статус юзера '
+#                                          f'{user.telegram_id} на неактивный.')
+#                 except TelegramBadRequest as e:
+#                     if 'chat not found' in str(e).lower():
+#                         logger.warning(f'Юзер {user.telegram_id} удалил чат с ботом.')
+#                         try:
+#                             await set_user_active(session, user.telegram_id, False)
+#                             logger.info(f'Статус юзера {user.telegram_id} изменен '
+#                                         'на неактивный.')
+#                         except SQLAlchemyError:
+#                             logger.exception('Не удалось изменить статус юзера '
+#                                              f'{user.telegram_id} на неактивный.')
+#                     else:
+#                         logger.exception('⚠️ Не удалось отправить сообщение для '
+#                                          f'telegram_id={user.telegram_id}.')
+#                 except Exception:
+#                     logger.exception(f'Не удалось отправить опрос для {user.telegram_id}.')
 
-            pair.feedback_sent = True
-            try:
-                await session.flush()
-                logger.debug(f'✅ Пара {pair.id} помечена во flush()')
-            except SQLAlchemyError:
-                logger.exception(f'Неудачный flush() для пары {pair.id}')
+#             pair.feedback_sent = True
+#             try:
+#                 await session.flush()
+#                 logger.debug(f'✅ Пара {pair.id} помечена во flush()')
+#             except SQLAlchemyError:
+#                 logger.exception(f'Неудачный flush() для пары {pair.id}')
 
-        try:
-            await session.commit()
-            logger.info('Все отметки об отправке опроса парам закоммичены.')
-        except SQLAlchemyError:
-            logger.exception("Не удалось закоммитить отметки об отправке опроса.")
+#         try:
+#             await session.commit()
+#             logger.info('Все отметки об отправке опроса парам закоммичены.')
+#         except SQLAlchemyError:
+#             logger.exception("Не удалось закоммитить отметки об отправке опроса.")
 
 
 async def refresh_all_usernames(session: AsyncSession, bot: Bot) -> None:

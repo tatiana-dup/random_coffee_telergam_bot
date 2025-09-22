@@ -1,6 +1,4 @@
 import logging
-import os
-from datetime import datetime
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart, Command, StateFilter
@@ -21,7 +19,6 @@ from keyboards.user_buttons import (
     generate_inline_interval,
     yes_or_no_keyboard,
 )
-from services.constants import DATE_FORMAT_1
 from services.user_service import (
     create_user,
     create_text_for_select_an_interval,
@@ -34,7 +31,6 @@ from services.user_service import (
     set_user_active,
     update_user_field,
     update_username,
-    upload_to_drive,
     create_text_with_interval,
 )
 
@@ -134,7 +130,7 @@ async def process_first_name_sending(message: Message, state: FSMContext):
 
 
 @user_router.message(StateFilter(FSMUserForm.waiting_for_first_name))
-async def warning_not_first_name(message: Message, state: FSMContext):
+async def warning_not_first_name(message: Message):
     """
     Хэндлер срабатывает в состоянии, когда мы ждем от пользователя его имя,
     и оно введено неверно. Просим пользователя ввести заново.
@@ -187,7 +183,7 @@ async def process_last_name_sending(message: Message, state: FSMContext):
 
 
 @user_router.message(StateFilter(FSMUserForm.waiting_for_last_name))
-async def warning_not_last_name(message: Message, state: FSMContext):
+async def warning_not_last_name(message: Message):
     """
     Хэндлер срабатывает в состоянии, когда мы ждем от пользователя его фамилию,
     и она введена неверно. Просим пользователя ввести заново.
@@ -201,12 +197,10 @@ async def warning_not_last_name(message: Message, state: FSMContext):
 
 
 @user_router.message(
-    F.text == KEYBOARD_BUTTON_TEXTS[
-        'button_stop_participation'
-    ],
+    F.text == KEYBOARD_BUTTON_TEXTS['button_stop_participation'],
     StateFilter(default_state)
 )
-async def pause_participation(message: Message, state: FSMContext):
+async def pause_participation(message: Message):
     """
     Хэндлер для приостановки участия пользователя.
     """
@@ -233,12 +227,11 @@ async def pause_participation(message: Message, state: FSMContext):
         await message.answer(USER_TEXTS['status_inactive'])
 
 
-@user_router.message(F.text == KEYBOARD_BUTTON_TEXTS[
-    'button_resume_participation'
-    ],
+@user_router.message(
+    F.text == KEYBOARD_BUTTON_TEXTS['button_resume_participation'],
     StateFilter(default_state)
 )
-async def resume_participation(message: Message, state: FSMContext):
+async def resume_participation(message: Message):
     """
     Хэндлер для возобновления участия пользователя.
     """
@@ -561,7 +554,8 @@ async def process_set_or_change_interval(callback: CallbackQuery):
 
 
 @user_router.callback_query(
-    lambda c: c.data.startswith('cancel_changing_interval')
+    lambda c: c.data.startswith('cancel_changing_interval'),
+    StateFilter(default_state)
 )
 async def handle_callback_query_no(callback: CallbackQuery):
     """
@@ -583,7 +577,8 @@ async def handle_callback_query_no(callback: CallbackQuery):
     await callback.answer()
 
 
-@user_router.message(F.text == KEYBOARD_BUTTON_TEXTS['button_how_it_works'])
+@user_router.message(F.text == KEYBOARD_BUTTON_TEXTS['button_how_it_works'],
+                     StateFilter(default_state))
 async def text_random_coffee(message: Message):
     """
     Выводит текст о том как работает Random_coffee
@@ -591,70 +586,6 @@ async def text_random_coffee(message: Message):
     async with AsyncSessionLocal() as session:
         text = await create_text_random_coffee(session)
         await message.answer(text, parse_mode='HTML')
-
-
-@user_router.message(
-    F.text == KEYBOARD_BUTTON_TEXTS['button_send_photo'],
-    StateFilter(default_state)
-)
-async def request_photo_handler(message: Message, state: FSMContext):
-    """
-    Проверяет нажал ли пользователь на кнопку отправить фото.
-    """
-    await message.answer(USER_TEXTS['send_photo'])
-    await state.set_state(FSMUserForm.waiting_for_photo)
-
-
-@user_router.message(
-    Command("cancel"),
-    StateFilter(FSMUserForm.waiting_for_photo)
-)
-async def cancel_handler(message: Message, state: FSMContext):
-    """
-    С помощью команды /cancel можно выйти из состояния отправки фото.
-    """
-    await state.clear()
-    await message.answer(USER_TEXTS['cancellation_send_photo'])
-
-
-@user_router.message(StateFilter(FSMUserForm.waiting_for_photo))
-async def photo_handler(message: Message, state: FSMContext):
-    if not message.photo:
-        if message.text and message.text in KEYBOARD_BUTTON_TEXTS.values():
-            await message.answer(ADMIN_TEXTS['no_kb_buttons'])
-        await message.answer(USER_TEXTS['error_send_photo'])
-        return
-
-    photo = message.photo[-1]
-    file_id = photo.file_id
-    file = await message.bot.get_file(file_id)
-    destination = f'./{file_id}.jpg'
-
-    await message.bot.download_file(file.file_path, destination=destination)
-
-    user_id = message.from_user.id
-    current_time = datetime.now().strftime(DATE_FORMAT_1)
-
-    try:
-        async with AsyncSessionLocal() as session:
-            user = await get_user_by_telegram_id(session, user_id)
-    except SQLAlchemyError as e:
-        logger.error(f'Ошибка при работе с базой данных: {e}')
-        user_name = message.from_user.full_name
-    else:
-        user_name = f'{user.first_name} {user.last_name or ""}'
-
-    file_name = f"{current_time} - {user_name}.jpg"
-
-    upload_result = upload_to_drive(destination, file_name)
-
-    if upload_result:
-        await message.answer(USER_TEXTS['photo_sent_successfully'])
-    else:
-        await message.answer(USER_TEXTS['photo_upload_error'])
-
-    os.remove(destination)
-    await state.clear()
 
 
 @user_router.message(Command('help'), StateFilter(default_state))
@@ -668,9 +599,8 @@ async def proccess_comand_help(message: Message):
 @user_router.message(F.text, StateFilter(default_state))
 async def fallback_handler(message: Message):
     """
-    Этот хэндлер должен быть самым последним,
-    так как он улавливает любую команду которую не смогли уловить
-    другие хэндлеры.
+    Хэндлер срабатывает, когда юзер отправляет неизвестную
+    команду или просто текст, который мы не ожидаем.
     """
     await message.answer(USER_TEXTS['no_now'])
 
@@ -681,5 +611,4 @@ async def other_type_handler(message: Message):
     Хэндлер срабатывает, когда юзер отправляет что-то кроме текста,
     что бот не может обработать.
     """
-    logger.info('Юзер отправил что-то кроме текста.')
     await message.answer(USER_TEXTS['user_unknown_type_data'])

@@ -14,8 +14,7 @@ from aiogram import Bot
 from config import load_config
 from database.db import AsyncSessionLocal
 from database.models import User, Pair, Setting
-from services.admin_service import (feedback_dispatcher_job,
-                                    notify_users_about_pairs)
+from services.admin_service import notify_users_about_pairs
 from services.constants import DATE_TIME_FORMAT_LOCALTIME
 from texts import ADMIN_TEXTS
 
@@ -37,9 +36,9 @@ scheduler = AsyncIOScheduler(
 current_interval = None
 
 
-async def feedback_dispatcher_wrapper():
-    bot, dispatcher, session_maker = job_context.get_context()
-    await feedback_dispatcher_job(bot, session_maker)
+# async def feedback_dispatcher_wrapper():
+#     bot, dispatcher, session_maker = job_context.get_context()
+#     await feedback_dispatcher_job(bot, session_maker)
 
 
 async def auto_pairing_wrapper():
@@ -323,12 +322,12 @@ async def schedule_feedback_jobs(session_maker):
 
     start_date_for_feedback_dispatcher = await schedule_feedback_dispatcher_for_auto_pairing(
         start_date_for_auto_pairing)
-    schedule_or_reschedule('feedback_dispatcher',
-                           feedback_dispatcher_wrapper,
-                           interval_for_job,
-                           session_maker,
-                           start_date=start_date_for_feedback_dispatcher,
-                           misfire_grace_time=None)
+    # schedule_or_reschedule('feedback_dispatcher',
+    #                        feedback_dispatcher_wrapper,
+    #                        interval_for_job,
+    #                        session_maker,
+    #                        start_date=start_date_for_feedback_dispatcher,
+    #                        misfire_grace_time=None)
 
     schedule_or_reschedule('reload_jobs_checker',
                            reload_scheduled_wrapper,

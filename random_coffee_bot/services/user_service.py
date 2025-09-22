@@ -1,23 +1,15 @@
 import logging
-import os
 from typing import Optional
 
-from dotenv import load_dotenv
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import load_config
 from database.models import Setting, User
 from texts import ADMIN_TEXTS, INTERVAL_TEXTS, USER_TEXTS
 
 logger = logging.getLogger(__name__)
-
-folder_id = os.getenv('GOOGLE_DRIVE_FOLDER_ID')
-
-load_dotenv()
 
 
 async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int
@@ -98,9 +90,12 @@ async def create_text_random_coffee(session: AsyncSession):
     Создает текст для описание проекта Random_coffee.
     """
     interval = await get_global_interval(session)
+    config = load_config()
+    admin_username = config.tg_bot.admin_username
 
     message = USER_TEXTS['random_coffee_bot'].format(
-        admin_interval=interval
+        admin_interval=interval,
+        admin_username=admin_username
     )
     return message
 
@@ -295,35 +290,6 @@ async def set_new_user_interval(
             'Ошибка при установке нового интервала для пользователя'
         )
         raise e
-
-
-def upload_to_drive(file_path, file_name):
-    """
-    Функция для работы с отправкой фото на гугл диск.
-    """
-    SCOPES = ['https://www.googleapis.com/auth/drive']
-    SERVICE_ACCOUNT_FILE = 'random_coffee_bot/credentials.json'
-
-    credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-
-    service = build('drive', 'v3', credentials=credentials)
-
-    file_metadata = {
-        'name': file_name,
-        'parents': [folder_id]
-    }
-
-    media = MediaFileUpload(file_path, mimetype='image/jpeg')
-
-    try:
-        file = service.files().create(
-            body=file_metadata, media_body=media, fields='id'
-        ).execute()
-        return file.get('id')
-    except Exception as e:
-        logger.error(f'Ошибка при загрузке файла: {e}')
-        return None
 
 
 def parse_callback_data(data: str) -> tuple[str, str]:
