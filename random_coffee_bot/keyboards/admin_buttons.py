@@ -1,5 +1,4 @@
 import logging
-
 from math import ceil
 from typing import Optional, Tuple
 
@@ -59,7 +58,8 @@ def generate_inline_manage(user_telegram_id: int,
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                     text=INLINE_BUTTON_TEXTS['set_has_permission_false'],
-                    callback_data=f'set_has_permission_false:{user_telegram_id}')],
+                    callback_data=(
+                        f'set_has_permission_false:{user_telegram_id}'))],
             [InlineKeyboardButton(
                 text=INLINE_BUTTON_TEXTS['set_pause'],
                 callback_data=f'set_pause:{user_telegram_id}')],
@@ -223,10 +223,12 @@ async def generate_inline_user_list(page: int = 1
     kb = InlineKeyboardBuilder()
 
     for u in users:
-        text = f'{u.last_name or ""} {u.first_name or ""}'.strip() or f'#{u.telegram_id}'
+        text = (f'{u.last_name or ""} {u.first_name or ""}'.strip()
+                or f'#{u.telegram_id}')
         kb.button(
             text=text,
-            callback_data=UsersCallbackFactory(telegram_id=u.telegram_id).pack()
+            callback_data=UsersCallbackFactory(
+                telegram_id=u.telegram_id).pack()
         )
 
     if page > 1:

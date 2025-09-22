@@ -3,7 +3,7 @@ from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
 from aiogram.enums import ChatType
-from aiogram.types import ChatMemberUpdated, ReplyKeyboardRemove, Update
+from aiogram.types import ReplyKeyboardRemove, Update
 from sqlalchemy.exc import SQLAlchemyError
 
 from database.db import AsyncSessionLocal

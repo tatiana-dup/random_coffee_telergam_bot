@@ -978,23 +978,3 @@ async def proccess_comand_help(message: Message):
     Хэндлер обрабатывает команду /help.
     """
     await message.answer(ADMIN_TEXTS['command_help_admin'], parse_mode='HTML')
-
-
-# @admin_router.message(F.text, StateFilter(default_state))
-# async def fallback_handler(message: Message):
-#     """
-#     Хэндлер срабатывает, когда админ отправляет неизвестную команду или текст.
-#     """
-#     logger.info('Админ отправил неизвестную команду.')
-#     await message.answer(ADMIN_TEXTS['admin_unknown_command'],
-#                          reply_markup=buttons_kb_admin)
-    
-# @admin_router.message(StateFilter(default_state))
-# async def other_type_handler(message: Message):
-#     """
-#     Хэндлер срабатывает, когда админ отправляет что-то кроме текста,
-#     что бот не может обработать.
-#     """
-#     logger.info('Админ отправил что-то кроме текста.')
-#     await message.answer(ADMIN_TEXTS['admin_unknown_type_data'],
-#                          reply_markup=buttons_kb_admin)

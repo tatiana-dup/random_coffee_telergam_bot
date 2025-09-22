@@ -1,12 +1,14 @@
-from aiogram.types import KeyboardButton
+from aiogram.types import (KeyboardButton,
+                           InlineKeyboardButton,
+                           InlineKeyboardMarkup)
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from texts import (
     KEYBOARD_BUTTON_TEXTS,
     INLINE_BUTTON_TEXTS,
     INTERVAL_TEXTS,
 )
+
 
 button_change_my_details = KeyboardButton(
     text=KEYBOARD_BUTTON_TEXTS['button_change_my_details']

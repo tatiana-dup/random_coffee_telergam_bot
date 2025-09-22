@@ -19,7 +19,7 @@ from database.models import User, Feedback
 from keyboards.user_buttons import (comment_question_kb,
                                     confirm_edit_comment_kb)
 from services.user_service import parse_callback_data
-from states.user_states import CommentStates
+from states.user_states import FSMUserForm
 from texts import (
     ADMIN_TEXTS,
     KEYBOARD_BUTTON_TEXTS,
@@ -32,8 +32,9 @@ common_router = Router()
 
 
 # --- Ответ: Да/Нет встреча ---
-@common_router.callback_query(F.data.startswith('meeting_yes') | F.data.startswith('meeting_no'),
-                              StateFilter(default_state))
+@common_router.callback_query(
+        F.data.startswith('meeting_yes') | F.data.startswith('meeting_no'),
+        StateFilter(default_state))
 async def process_meeting_feedback(callback: CallbackQuery):
     await callback.answer()
     data = callback.data
@@ -43,11 +44,13 @@ async def process_meeting_feedback(callback: CallbackQuery):
     telegram_user_id = callback.from_user.id
 
     async with AsyncSessionLocal() as session:
-        user = await session.execute(select(User).filter_by(telegram_id=telegram_user_id))
+        user = await session.execute(select(User)
+                                     .filter_by(telegram_id=telegram_user_id))
         user = user.scalar_one_or_none()
 
         if user is None:
-            logger.warning(f'Callback от неизвестного пользователя {telegram_user_id}')
+            logger.warning('Callback от неизвестного '
+                           f'пользователя {telegram_user_id}')
             return
 
         user_id = user.id
@@ -75,7 +78,8 @@ async def process_meeting_feedback(callback: CallbackQuery):
             return
 
         elif data.startswith('meeting_yes'):
-            feedback = Feedback(pair_id=pair_id, user_id=user_id, did_meet=True)
+            feedback = Feedback(pair_id=pair_id, user_id=user_id,
+                                did_meet=True)
             session.add(feedback)
             await session.commit()
             await callback.message.edit_text(
@@ -88,8 +92,9 @@ async def process_meeting_feedback(callback: CallbackQuery):
 
 
 # --- Ответ: Комментарий или нет ---
-@common_router.callback_query(F.data.startswith('leave_comment') | F.data.startswith('no_comment'),
-                            StateFilter(default_state))
+@common_router.callback_query(
+        F.data.startswith('leave_comment') | F.data.startswith('no_comment'),
+        StateFilter(default_state))
 async def process_comment_choice(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     action, feedback_id_str = parse_callback_data(callback.data)
@@ -100,13 +105,13 @@ async def process_comment_choice(callback: CallbackQuery, state: FSMContext):
         return
 
     else:
-        await state.set_state(CommentStates.waiting_for_comment)
+        await state.set_state(FSMUserForm.waiting_for_comment)
         await state.update_data(feedback_id=feedback_id)
         await callback.message.delete()
         await callback.message.answer(USER_TEXTS['ask_comment_text'])
 
 
-@common_router.message(CommentStates.waiting_for_comment, F.text == '/cancel')
+@common_router.message(FSMUserForm.waiting_for_comment, F.text == '/cancel')
 async def cancel_feedback(message: Message, state: FSMContext):
     data = await state.get_data()
     feedback_id = data.get('feedback_id')
@@ -133,7 +138,7 @@ async def cancel_feedback(message: Message, state: FSMContext):
 
 
 # --- Обработка комментария ---
-@common_router.message(CommentStates.waiting_for_comment, F.text)
+@common_router.message(FSMUserForm.waiting_for_comment, F.text)
 async def receive_comment(message: Message, state: FSMContext):
     if message.text in KEYBOARD_BUTTON_TEXTS.values():
         await message.answer(ADMIN_TEXTS['no_kb_buttons'])
@@ -177,13 +182,14 @@ async def receive_comment(message: Message, state: FSMContext):
             reply_markup=confirm_edit_comment_kb(feedback_id))
 
 
-@common_router.message(CommentStates.waiting_for_comment, ~F.text)
+@common_router.message(FSMUserForm.waiting_for_comment, ~F.text)
 async def receive_no_comment(message: Message, state: FSMContext):
     await message.answer(USER_TEXTS['reject_no_text_comment'])
 
 
-@common_router.callback_query(F.data.startswith('confirm_edit') | F.data.startswith('save_comment'),
-                            StateFilter(default_state))
+@common_router.callback_query(
+        F.data.startswith('confirm_edit') | F.data.startswith('save_comment'),
+        StateFilter(default_state))
 async def handle_edit_decision(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     action, feedback_id_str = parse_callback_data(callback.data)
@@ -193,14 +199,14 @@ async def handle_edit_decision(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(USER_TEXTS['comment_has_saved'])
         return
 
-    await state.set_state(CommentStates.waiting_for_comment)
+    await state.set_state(FSMUserForm.waiting_for_comment)
     await state.update_data(feedback_id=feedback_id)
     await callback.message.delete()
     await callback.message.answer(USER_TEXTS['ask_comment_text'])
 
 
 @common_router.callback_query(F.data.startswith('cancel_comment'),
-                            StateFilter(default_state))
+                              StateFilter(default_state))
 async def proccess_cancel_comment(callback: CallbackQuery, state: FSMContext):
     _, feedback_id_str = parse_callback_data(callback.data)
     feedback_id = int(feedback_id_str)
@@ -212,7 +218,8 @@ async def proccess_cancel_comment(callback: CallbackQuery, state: FSMContext):
             existing_feedback = feedback_query.scalar()
 
             if not existing_feedback:
-                await callback.message.answer(USER_TEXTS['problem_saving_comment'])
+                await callback.message.answer(
+                    USER_TEXTS['problem_saving_comment'])
                 await state.clear()
                 return
 
@@ -265,7 +272,8 @@ async def global_error_handler(event: ErrorEvent) -> bool:
         if ('message is not modified' in text
                 or 'message to edit not found' in text):
             return True
-        logger.error(f'BadRequest при работе с Telegram API: {event.exception}')
+        logger.error('BadRequest при работе с '
+                     f'Telegram API: {event.exception}')
 
     elif isinstance(event.exception, TelegramNetworkError):
         logger.warning(f'Проблемы с интернет-соединением при запросе '

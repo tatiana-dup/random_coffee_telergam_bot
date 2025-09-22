@@ -1,6 +1,3 @@
-import logging
-from logging.handlers import RotatingFileHandler
-
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,

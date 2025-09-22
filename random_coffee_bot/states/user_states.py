@@ -5,7 +5,4 @@ class FSMUserForm(StatesGroup):
     waiting_for_first_name = State()
     waiting_for_last_name = State()
     waiting_for_photo = State()
-
-
-class CommentStates(StatesGroup):
     waiting_for_comment = State()

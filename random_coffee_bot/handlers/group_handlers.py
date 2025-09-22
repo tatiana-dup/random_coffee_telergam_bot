@@ -29,7 +29,8 @@ async def on_user_leave(update: ChatMemberUpdated):
             user.has_permission = False
             user.is_blocked = True
             await session.commit()
-            logger.info(f'Юзер {user_id} больше не участник группы. Статусы изменены.')
+            logger.info(f'Юзер {user_id} больше не участник группы. '
+                        'Статусы изменены.')
     except SQLAlchemyError:
         await session.rollback()
         logger.exception(f'Не удалось изменить статусы юзера {user_id}, '
@@ -48,7 +49,8 @@ async def on_user_join(update: ChatMemberUpdated):
             user.has_permission = True
             user.is_blocked = False
             await session.commit()
-            logger.info(f'Юзер {user_id} снова участник группы. Статусы изменены.')
+            logger.info(f'Юзер {user_id} снова участник группы. '
+                        'Статусы изменены.')
     except SQLAlchemyError:
         await session.rollback()
         logger.exception(f'Не удалось изменить статусы юзера {user_id}, '

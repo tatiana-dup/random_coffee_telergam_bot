@@ -10,9 +10,18 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
-from apscheduler.events import EVENT_JOB_EXECUTED
 from database.db import AsyncSessionLocal
 from database.models import User
+from keyboards.user_buttons import (
+    create_active_user_keyboard,
+    create_activate_keyboard,
+    create_deactivate_keyboard,
+    create_inactive_user_keyboard,
+    generate_inline_confirm_change_interval,
+    generate_inline_interval,
+    yes_or_no_keyboard,
+)
+from services.constants import DATE_FORMAT_1
 from services.user_service import (
     create_user,
     create_text_for_select_an_interval,
@@ -29,33 +38,18 @@ from services.user_service import (
     create_text_with_interval,
 )
 
-from filters.admin_filters import AdminCallbackFilter, AdminMessageFilter
 from states.user_states import FSMUserForm
-
-from keyboards.user_buttons import (
-    create_active_user_keyboard,
-    create_activate_keyboard,
-    create_deactivate_keyboard,
-    create_inactive_user_keyboard,
-    generate_inline_confirm_change_interval,
-    generate_inline_interval,
-    yes_or_no_keyboard,
-)
-
 from texts import (
     KEYBOARD_BUTTON_TEXTS,
     USER_TEXTS,
     ADMIN_TEXTS,
     NAME_PATTERN,
 )
-from services.constants import DATE_FORMAT_1
 
 
 logger = logging.getLogger(__name__)
 
 user_router = Router()
-# user_router.message.filter(~AdminMessageFilter())
-# user_router.callback_query.filter(~AdminCallbackFilter())
 
 
 @user_router.message(CommandStart(), StateFilter(default_state))
