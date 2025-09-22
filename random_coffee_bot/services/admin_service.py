@@ -257,7 +257,8 @@ async def export_users_to_gsheet(
         role = U_V_TEXT['admin'] if u.is_admin else U_V_TEXT['dash']
         is_in_group = U_V_TEXT['no'] if u.is_blocked else U_V_TEXT['yes']
         is_active = U_V_TEXT['yes'] if u.is_active else U_V_TEXT['no']
-        has_permission = U_V_TEXT['yes'] if u.has_permission else U_V_TEXT['no']
+        has_permission = (U_V_TEXT['yes'] if u.has_permission
+                          else U_V_TEXT['no'])
         pairing_interval = (INTERVAL_TEXTS['default'] if not u.pairing_interval
                             else INTERVAL_TEXTS[str(u.pairing_interval)])
         pause_until = (u.pause_until.strftime(DATE_FORMAT) if u.pause_until
@@ -466,7 +467,8 @@ async def set_first_pairing_date(recieved_date: datetime):
 
             logger.info(
                 f'Установленный интервал: {current_interval.value}\n'
-                f'Записанная дата в БД: {current_interval.first_matching_date} (UTC)')
+                'Записанная дата в БД: '
+                f'{current_interval.first_matching_date} (UTC)')
     except SQLAlchemyError as e:
         await session.rollback()
         logger.error(f'Ошибка при установке интервала и даты: {e}')
@@ -643,8 +645,7 @@ async def notify_users_about_pairs(session: AsyncSession,
                 telegram_id=u.telegram_id, name=name, username=u.username
             ))
         return (USER_TEXTS['link_to_user_with_username'].format(
-                telegram_id=u.telegram_id, name=name
-        ))
+                telegram_id=u.telegram_id, name=name))
 
     for pair in pairs:
         user_ids = [pair.user1_id, pair.user2_id]
@@ -684,7 +685,8 @@ async def notify_users_about_pairs(session: AsyncSession,
                                      f'{user.telegram_id} на неактивный.')
             except TelegramBadRequest as e:
                 if 'chat not found' in str(e).lower():
-                    logger.warning(f'Юзер {user.telegram_id} удалил чат с ботом.')
+                    logger.warning(
+                        f'Юзер {user.telegram_id} удалил чат с ботом.')
                     try:
                         await set_user_active(session, user.telegram_id, False)
                         logger.info(f'Статус юзера {user.telegram_id} изменен '
@@ -700,104 +702,11 @@ async def notify_users_about_pairs(session: AsyncSession,
                                  f'telegram_id={user.telegram_id}.')
 
 
-# async def feedback_dispatcher_job(bot: Bot, session_maker):
-#     async with session_maker() as session:
-#         result_pairs = await session.execute(
-#             select(Pair).where(Pair.feedback_sent.is_(False))
-#         )
-#         pairs = result_pairs.scalars().all()
-
-#         if not pairs:
-#             logger.info("ℹ️ Нет новых пар для отправки опроса.")
-#             return
-
-#         for pair in pairs:
-#             user_ids = [pair.user1_id, pair.user2_id]
-#             if pair.user3_id:
-#                 user_ids.append(pair.user3_id)
-
-#             result_users = await session.execute(
-#                 select(User).where(User.id.in_(user_ids),
-#                                    User.has_permission.is_(True))
-#             )
-#             users = result_users.scalars().all()
-
-#             if not users:
-#                 logger.info(f'Пара {pair.id}: нет участников, '
-#                             'которым разрешено пользоваться ботом.')
-#                 continue
-
-#             kb = meeting_question_kb(pair.id)
-#             for user in users:
-#                 partner_names = []
-#                 for p in users:
-#                     if p.id == user.id:
-#                         continue
-#                     name = ' '.join(filter(None, (p.first_name, p.last_name)))
-#                     if not name:
-#                         name = USER_TEXTS['instead_name']
-#                     partner_names.append(name)
-#                 if partner_names:
-#                     if len(partner_names) == 1:
-#                         partners_text = (
-#                             USER_TEXTS['fb_with_one_user'] + partner_names[0])
-#                     else:
-#                         partners_text = (
-#                             USER_TEXTS['fb_with_two_users'
-#                                        ] + ', '.join(partner_names))
-#                     text = USER_TEXTS['ask_feedback_with_names'
-#                                       ].format(partners_text=partners_text)
-#                 else:
-#                     text = USER_TEXTS['ask_feedback_without_names']
-
-#                 try:
-#                     await bot.send_message(
-#                         user.telegram_id,
-#                         text,
-#                         reply_markup=kb
-#                     )
-#                     await asyncio.sleep(0.05)
-#                 except TelegramForbiddenError:
-#                     logger.warning(f'Юзер {user.telegram_id} заблокировал бота.')
-#                     try:
-#                         await set_user_active(session, user.telegram_id, False)
-#                         logger.info(f'Статус юзера {user.telegram_id} изменен '
-#                                     'на неактивный.')
-#                     except SQLAlchemyError:
-#                         logger.exception('Не удалось изменить статус юзера '
-#                                          f'{user.telegram_id} на неактивный.')
-#                 except TelegramBadRequest as e:
-#                     if 'chat not found' in str(e).lower():
-#                         logger.warning(f'Юзер {user.telegram_id} удалил чат с ботом.')
-#                         try:
-#                             await set_user_active(session, user.telegram_id, False)
-#                             logger.info(f'Статус юзера {user.telegram_id} изменен '
-#                                         'на неактивный.')
-#                         except SQLAlchemyError:
-#                             logger.exception('Не удалось изменить статус юзера '
-#                                              f'{user.telegram_id} на неактивный.')
-#                     else:
-#                         logger.exception('⚠️ Не удалось отправить сообщение для '
-#                                          f'telegram_id={user.telegram_id}.')
-#                 except Exception:
-#                     logger.exception(f'Не удалось отправить опрос для {user.telegram_id}.')
-
-#             pair.feedback_sent = True
-#             try:
-#                 await session.flush()
-#                 logger.debug(f'✅ Пара {pair.id} помечена во flush()')
-#             except SQLAlchemyError:
-#                 logger.exception(f'Неудачный flush() для пары {pair.id}')
-
-#         try:
-#             await session.commit()
-#             logger.info('Все отметки об отправке опроса парам закоммичены.')
-#         except SQLAlchemyError:
-#             logger.exception("Не удалось закоммитить отметки об отправке опроса.")
-
-
 async def refresh_all_usernames(session: AsyncSession, bot: Bot) -> None:
-    """Фоновая задача: пробегаем по всем users и обновляем username через get_chat."""
+    """
+    Фоновая задача: пробегаем по всем users и обновляем username
+    через get_chat.
+    """
     result = await session.execute(select(User)
                                    .where(User.is_active.is_(True)))
     users = result.scalars().all()
@@ -830,7 +739,8 @@ async def refresh_all_usernames(session: AsyncSession, bot: Bot) -> None:
                 logger.exception('⚠️ Не удалось отправить сообщение для '
                                  f'telegram_id={user.telegram_id}.')
         except Exception:
-            logger.exception(f'Не удалось обновить юзернейм для {user.telegram_id}.')
+            logger.exception('Не удалось обновить юзернейм '
+                             f'для {user.telegram_id}.')
     await session.commit()
 
 

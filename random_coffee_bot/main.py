@@ -4,23 +4,23 @@ logging_config.setup_logging()
 import logging
 logger = logging.getLogger(__name__)
 
-
-import asyncio
 from datetime import datetime
 
-from bot import scheduler, schedule_feedback_jobs
-from aiogram import Bot, Dispatcher
+import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+from aiogram import Bot, Dispatcher
 from config import Config, load_config
+from globals import job_context
 from handlers.super_admin_handlers import super_admin_router
 from handlers.admin_handlers import admin_router
-from handlers.group_handlers import group_router
 from handlers.common_handler import common_router
+from handlers.group_handlers import group_router
 from handlers.users_handlers import user_router
 from main_menu.main_menu_setup import set_main_menu_on_bot_start
 from middlewares import AccessMiddleware
-from globals import job_context
 from services.admin_service import set_first_pairing_date
+from utils.scheduler import schedule_pairing_jobs
 
 
 async def main():
@@ -64,7 +64,7 @@ async def main():
     # формирования пар (время UTC):
     await set_first_pairing_date(datetime(2025, 9, 1, 15, 00))
 
-    await schedule_feedback_jobs(session_maker)
+    await schedule_pairing_jobs(session_maker)
 
     await dp.start_polling(bot)
 
