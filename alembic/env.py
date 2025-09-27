@@ -33,6 +33,17 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+EXCLUDE_TABLES = {'apscheduler_jobs'}
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == 'table' and name in EXCLUDE_TABLES:
+        return False
+    if type_ == 'index' and (getattr(object.table, 'name', None)
+                             in EXCLUDE_TABLES):
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -52,6 +63,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
+        compare_type=True,
     )
 
     with context.begin_transaction():
@@ -59,7 +72,12 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+        compare_type=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

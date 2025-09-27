@@ -15,3 +15,8 @@ psycopg==3.2
 
 # на этапе разработки
 aiosqlite==0.20.0
+
+# для тестов
+pytest==8.4.2
+pytest-asyncio==1.2.0
+testcontainers[postgresql]==4.13.1

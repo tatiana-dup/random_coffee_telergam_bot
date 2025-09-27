@@ -7,13 +7,13 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select
 
-from config import load_config
-from database.db import AsyncSessionLocal
-from database.models import Setting
-from globals import job_context
-from services.constants import DATE_TIME_FORMAT_LOCALTIME
-from texts import ADMIN_TEXTS
-from utils.pairing import auto_pairing
+from ..config import load_config
+from ..database.db import AsyncSessionLocal
+from ..database.models import Setting
+from ..globals import job_context
+from ..services.constants import DATE_TIME_FORMAT_LOCALTIME
+from ..texts import ADMIN_TEXTS
+from ..utils.pairing import auto_pairing
 
 
 logger = logging.getLogger(__name__)
@@ -38,10 +38,11 @@ async def auto_pairing_wrapper():
     bot, dispatcher, session_maker = job_context.get_context()
 
     async with session_maker() as session:
-        result = await session.execute(select(Setting))
-        setting_obj = result.scalar_one_or_none()
+        result = await session.execute(select(Setting.is_pairing_on)
+                                       .where(Setting.id == 1))
+        is_pairing_on = result.scalar_one()
 
-        if setting_obj and setting_obj.auto_pairing_paused == 1:
+        if not is_pairing_on:
             logger.info('🛑 Задача auto_pairing_weekly приостановлена '
                         '(флаг в настройках).')
             return
@@ -74,17 +75,18 @@ async def get_next_pairing_date() -> str | None:
                 if job.id == 'auto_pairing_weekly'), None)
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Setting))
-        setting_obj = result.scalar_one_or_none()
+        result = await session.execute(select(Setting.is_pairing_on)
+                                       .where(Setting.id == 1))
+        is_pairing_on = result.scalar_one()
 
     if job:
         next_run_utc = job.next_run_time
         next_run_localtime = next_run_utc.astimezone(bot_timezone)
         next_run_str = next_run_localtime.strftime(DATE_TIME_FORMAT_LOCALTIME)
 
-        if setting_obj and setting_obj.auto_pairing_paused == 1:
+        if not is_pairing_on:
             logger.info(f'🛠 Паринг остановлен. Но задача {job.id} '
-                        'запланирована на: {next_run_str}')
+                        f'запланирована на: {next_run_str}')
             return ADMIN_TEXTS['pairing_on_pause'
                                ].format(next_run_str=next_run_str)
         else:
@@ -148,13 +150,13 @@ async def schedule_pairing_jobs(session_maker):
 
     async with session_maker() as session:
         result = await session.execute(
-            select(Setting).where(Setting.key == 'global_interval'))
-        setting = result.scalar_one_or_none()
+            select(Setting).where(Setting.id == 1))
+        setting = result.scalar_one()
 
-        setting_interval = int(setting.value) if setting and setting.value else 2
+        setting_interval = setting.global_interval
         start_date = (
-            setting.first_matching_date
-            if setting and setting.first_matching_date
+            setting.first_pairing_date
+            if setting and setting.first_pairing_date
             else datetime.utcnow()
         )
 
@@ -193,9 +195,8 @@ async def schedule_pairing_jobs(session_maker):
 async def reload_scheduled_jobs(session_maker):
     async with session_maker() as session:
         result = await session.execute(
-            select(Setting).where(Setting.key == 'global_interval'))
-        setting = result.scalar_one_or_none()
-        new_interval = int(setting.value) if setting and setting.value else 2
+            select(Setting.global_interval).where(Setting.id == 1))
+        new_interval = result.scalar_one()
 
     global current_interval
     if current_interval != new_interval:

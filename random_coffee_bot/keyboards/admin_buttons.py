@@ -10,9 +10,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
-from database.db import AsyncSessionLocal
-from database.models import User
-from texts import (INLINE_BUTTON_TEXTS,
+from ..database.db import AsyncSessionLocal
+from ..database.models import User
+from ..texts import (INLINE_BUTTON_TEXTS,
                    INTERVAL_TEXTS,
                    KEYBOARD_BUTTON_TEXTS)
 

@@ -1,26 +1,25 @@
-import logging_config
+from . import logging_config
 logging_config.setup_logging()
 
 import logging
 logger = logging.getLogger(__name__)
 
-from datetime import datetime
 
 import asyncio
+from aiogram import Bot, Dispatcher
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from aiogram import Bot, Dispatcher
-from config import Config, load_config
-from globals import job_context
-from handlers.super_admin_handlers import super_admin_router
-from handlers.admin_handlers import admin_router
-from handlers.common_handler import common_router
-from handlers.group_handlers import group_router
-from handlers.users_handlers import user_router
-from main_menu.main_menu_setup import set_main_menu_on_bot_start
-from middlewares import AccessMiddleware
-from services.admin_service import set_first_pairing_date
-from utils.scheduler import schedule_pairing_jobs
+from .config import Config, load_config
+from .globals import job_context
+from .handlers.super_admin_handlers import super_admin_router
+from .handlers.admin_handlers import admin_router
+from .handlers.common_handler import common_router
+from .handlers.group_handlers import group_router
+from .handlers.users_handlers import user_router
+from .main_menu.main_menu_setup import set_main_menu_on_bot_start
+from .middlewares import AccessMiddleware
+from .utils.bootstrap_settings import ensure_app_settings
+from .utils.scheduler import schedule_pairing_jobs
 
 
 async def main():
@@ -34,6 +33,11 @@ async def main():
 
     engine = create_async_engine(config.db.db_url, echo=False)
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
+
+    await ensure_app_settings(
+        2,
+        config.bs_settings.first_pairing_at,
+        False)
 
     bot = Bot(
         token=config.tg_bot.token
@@ -59,10 +63,6 @@ async def main():
     #  На случай, если нужно будет запланировать все задачи с чистого листа на новую дату:
     # scheduler.start()  # Для прода закоментировать
     # scheduler.remove_all_jobs()  # Для прода закоментировать
-
-    # При первом запуске бота установить нужную дату и время первого
-    # формирования пар (время UTC):
-    await set_first_pairing_date(datetime(2025, 9, 1, 15, 00))
 
     await schedule_pairing_jobs(session_maker)
 

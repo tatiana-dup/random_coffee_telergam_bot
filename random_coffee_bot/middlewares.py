@@ -6,9 +6,9 @@ from aiogram.enums import ChatType
 from aiogram.types import ReplyKeyboardRemove, Update
 from sqlalchemy.exc import SQLAlchemyError
 
-from database.db import AsyncSessionLocal
-from services.user_service import get_user_by_telegram_id
-from texts import USER_TEXTS
+from .database.db import AsyncSessionLocal
+from .services.user_service import get_user_by_telegram_id
+from .texts import USER_TEXTS
 
 
 logger = logging.getLogger(__name__)

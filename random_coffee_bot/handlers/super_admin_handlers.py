@@ -6,25 +6,25 @@ from aiogram.fsm.state import default_state
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.context import FSMContext
 
-from filters.super_admin_filters import (
+from ..filters.super_admin_filters import (
     SuperAdminMessageFilter,
     SuperAdminCallbackFilter
 )
-from main_menu.main_menu_setup import (commands_for_admin,
+from ..main_menu.main_menu_setup import (commands_for_admin,
                                        delete_main_menu,
                                        set_main_menu)
-from states.admin_states import FSMAdminPanel
-from services.admin_service import (
+from ..states.admin_states import FSMAdminPanel
+from ..services.admin_service import (
     set_user_as_admin,
     set_admin_as_user,
     is_user_admin,
     is_admin_user,
     get_admin_list
 )
-from keyboards.admin_buttons import buttons_kb_admin
-from keyboards.user_buttons import (create_active_user_keyboard,
+from ..keyboards.admin_buttons import buttons_kb_admin
+from ..keyboards.user_buttons import (create_active_user_keyboard,
                                     create_inactive_user_keyboard)
-from texts import ADMIN_TEXTS, KEYBOARD_BUTTON_TEXTS
+from ..texts import ADMIN_TEXTS, KEYBOARD_BUTTON_TEXTS
 
 logger = logging.getLogger(__name__)
 

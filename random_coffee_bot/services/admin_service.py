@@ -11,17 +11,17 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
-from database.db import AsyncSessionLocal
-from database.models import Notification, Pair, Setting, User
-from services.constants import DATE_FORMAT, DATE_TIME_FORMAT_UTC
-from services.user_service import set_user_active
-from texts import (ADMIN_TEXTS,
-                   INTERVAL_TEXTS,
-                   PAIR_TABLE_HEADERS_TEXT,
-                   USER_TABLE_HEADERS_TEXT,
-                   USER_TABLE_VALUES_TEXT as U_V_TEXT,
-                   USER_TEXTS)
-from utils.google_sheets import pairs_sheet, users_sheet
+from ..database.db import AsyncSessionLocal
+from ..database.models import Notification, Pair, Setting, User
+from ..services.constants import DATE_FORMAT, DATE_TIME_FORMAT_UTC
+from ..services.user_service import set_user_active
+from ..texts import (ADMIN_TEXTS,
+                     INTERVAL_TEXTS,
+                     PAIR_TABLE_HEADERS_TEXT,
+                     USER_TABLE_HEADERS_TEXT,
+                     USER_TABLE_VALUES_TEXT as U_V_TEXT,
+                     USER_TEXTS)
+from ..utils.google_sheets import pairs_sheet, users_sheet
 
 
 logger = logging.getLogger(__name__)
@@ -167,32 +167,27 @@ async def get_global_interval(session: AsyncSession) -> Optional[int]:
     Возвращает из базы данных значение глобального интервала.
     """
     result = await session.execute(
-        select(Setting.value).where(Setting.key == 'global_interval')
+        select(Setting.global_interval).where(Setting.id == 1)
     )
-    return result.scalar()
+    return result.scalar_one()
 
 
 async def set_new_global_interval(session: AsyncSession, new_value: int
-                                  ) -> str:
+                                  ) -> int:
     """
     Изменяет значение глобального интервала в таблице settings.
     Возвращает True, если интервал обновлен.
     """
     try:
         result = await session.execute(
-            select(Setting).where(Setting.key == 'global_interval')
+            select(Setting).where(Setting.id == 1)
         )
-        current_interval = result.scalars().first()
+        setting = result.scalar_one()
 
-        if current_interval:
-            current_interval.value = new_value
-        else:
-            current_interval = Setting(key='global_interval', value=new_value)
-            session.add(current_interval)
-
+        setting.global_interval = new_value
         await session.commit()
-        logger.info(f'Установленный интервал {current_interval.value}')
-        return current_interval.value
+        logger.info(f'Установленный интервал {setting.global_interval}')
+        return setting.global_interval
     except SQLAlchemyError as e:
         await session.rollback()
         logger.exception('Ошибка при установке нового интервала')
@@ -216,7 +211,7 @@ async def fetch_all_users(session: AsyncSession) -> Sequence[User]:
                 .values(pause_until=None)
             )
             result = await session.execute(
-                select(User).order_by(User.joined_at)
+                select(User).order_by(User.created_at)
             )
             users = result.scalars().all()
 
@@ -251,8 +246,8 @@ async def export_users_to_gsheet(
     rows.append(headers)
 
     for u in users:
-        telegram_id = u.telegram_id
-        first_name = u.first_name
+        telegram_id = str(u.telegram_id)
+        first_name = u.first_name if u.first_name else U_V_TEXT['dash']
         last_name = u.last_name if u.last_name else U_V_TEXT['dash']
         role = U_V_TEXT['admin'] if u.is_admin else U_V_TEXT['dash']
         is_in_group = U_V_TEXT['no'] if u.is_blocked else U_V_TEXT['yes']
@@ -263,8 +258,8 @@ async def export_users_to_gsheet(
                             else INTERVAL_TEXTS[str(u.pairing_interval)])
         pause_until = (u.pause_until.strftime(DATE_FORMAT) if u.pause_until
                        else '')
-        joined_at = u.joined_at.strftime(DATE_FORMAT)
-        accept_policy = (u.joined_at.strftime(DATE_TIME_FORMAT_UTC))
+        joined_at = u.created_at.strftime(DATE_FORMAT)
+        accept_policy = (u.created_at.strftime(DATE_TIME_FORMAT_UTC))
 
         rows.append([telegram_id, first_name, last_name, role, is_in_group,
                      is_active, has_permission, pairing_interval, pause_until,
@@ -287,7 +282,7 @@ async def fetch_all_pairs(session: AsyncSession) -> Sequence[Pair]:
                 selectinload(Pair.user1),
                 selectinload(Pair.user2),
                 selectinload(Pair.user3)
-            ).order_by(Pair.paired_at.desc())
+            ).order_by(Pair.created_at.desc())
         )
         pairs = result.scalars().all()
         return pairs
@@ -315,10 +310,10 @@ async def export_pairs_to_gsheet(
 
     for p in pairs:
         # для тестирования в часах и минутах:
-        # pairing_date_utc = p.paired_at
+        # pairing_date_utc = p.created_at
         # pairing_date = pairing_date_utc.strftime('%Y-%m-%d %H:%M')
 
-        pairing_date = p.paired_at.strftime(DATE_FORMAT)
+        pairing_date = p.created_at.strftime(DATE_FORMAT)
         u1_full_name = (f'{p.user1.first_name or ""} {p.user1.last_name or ""}'
                         ).strip()
         u2_full_name = (f'{p.user2.first_name or ""} {p.user2.last_name or ""}'
@@ -445,33 +440,33 @@ async def reset_user_pause_until(session: AsyncSession, user: User) -> None:
                          f'для user_id={user.id}: {e}')
 
 
-async def set_first_pairing_date(recieved_date: datetime):
-    try:
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(Setting).where(Setting.key == 'global_interval')
-            )
-            current_interval = result.scalars().first()
+# async def set_first_pairing_date(recieved_date: datetime):
+#     try:
+#         async with AsyncSessionLocal() as session:
+#             result = await session.execute(
+#                 select(Setting).where(Setting.key == 'global_interval')
+#             )
+#             current_interval = result.scalars().first()
 
-            if not current_interval:
-                current_interval = Setting(
-                    key='global_interval',
-                    value=2,
-                    first_matching_date=recieved_date)
-                session.add(current_interval)
-                await session.commit()
-            elif (current_interval.first_matching_date and
-                  current_interval.first_matching_date < recieved_date):
-                current_interval.first_matching_date = recieved_date
-                await session.commit()
+#             if not current_interval:
+#                 current_interval = Setting(
+#                     key='global_interval',
+#                     value=2,
+#                     first_matching_date=recieved_date)
+#                 session.add(current_interval)
+#                 await session.commit()
+#             elif (current_interval.first_matching_date and
+#                   current_interval.first_matching_date < recieved_date):
+#                 current_interval.first_matching_date = recieved_date
+#                 await session.commit()
 
-            logger.info(
-                f'Установленный интервал: {current_interval.value}\n'
-                'Записанная дата в БД: '
-                f'{current_interval.first_matching_date} (UTC)')
-    except SQLAlchemyError as e:
-        await session.rollback()
-        logger.error(f'Ошибка при установке интервала и даты: {e}')
+#             logger.info(
+#                 f'Установленный интервал: {current_interval.value}\n'
+#                 'Записанная дата в БД: '
+#                 f'{current_interval.first_matching_date} (UTC)')
+#     except SQLAlchemyError as e:
+#         await session.rollback()
+#         logger.error(f'Ошибка при установке интервала и даты: {e}')
 
 
 async def set_user_as_admin(user_id: int) -> bool:
@@ -598,7 +593,7 @@ async def is_admin_user(user_id: int) -> bool:
         return False
 
 
-async def get_admin_list() -> list:
+async def get_admin_list() -> Sequence[User]:
     """
     Получает список всех администраторов.
 
@@ -644,7 +639,7 @@ async def notify_users_about_pairs(session: AsyncSession,
             return (USER_TEXTS['link_to_user_with_username'].format(
                 telegram_id=u.telegram_id, name=name, username=u.username
             ))
-        return (USER_TEXTS['link_to_user_with_username'].format(
+        return (USER_TEXTS['link_to_user_without_username'].format(
                 telegram_id=u.telegram_id, name=name))
 
     for pair in pairs:
@@ -747,7 +742,7 @@ async def refresh_all_usernames(session: AsyncSession, bot: Bot) -> None:
 # Служебная функция на время разработки.
 async def delete_user(telegram_id: int) -> bool:
     '''Удаляет пользователя из БД.'''
-    from services.user_service import get_user_by_telegram_id
+    from ..services.user_service import get_user_by_telegram_id
     async with AsyncSessionLocal() as session:
         try:
             user = await get_user_by_telegram_id(session, telegram_id)

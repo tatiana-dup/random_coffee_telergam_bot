@@ -9,7 +9,7 @@ from aiogram.exceptions import (AiogramError,
                                 TelegramRetryAfter)
 from aiogram.types import CallbackQuery, ErrorEvent, Message
 
-from texts import USER_TEXTS
+from ..texts import USER_TEXTS
 
 
 logger = logging.getLogger(__name__)

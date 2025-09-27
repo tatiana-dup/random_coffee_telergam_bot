@@ -7,8 +7,8 @@ from aiogram.types import ChatMemberUpdated
 from sqlalchemy.exc import SQLAlchemyError
 
 
-from database.db import AsyncSessionLocal
-from services.user_service import get_user_by_telegram_id
+from ..database.db import AsyncSessionLocal
+from ..services.user_service import get_user_by_telegram_id
 
 
 logger = logging.getLogger(__name__)

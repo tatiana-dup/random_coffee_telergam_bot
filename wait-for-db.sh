@@ -12,5 +12,11 @@ until pg_isready > /dev/null 2>&1; do
   sleep 1
 done
 
-alembic upgrade head
-exec python random_coffee_bot/main.py
+if [ "${APPLY_MIGRATIONS:-1}" = "1" ]; then
+  echo "Applying migrations..."
+  alembic -c /app/alembic.ini upgrade head
+else
+  echo "Skipping migrations (APPLY_MIGRATIONS=$APPLY_MIGRATIONS)"
+fi
+
+exec python -m random_coffee_bot.main

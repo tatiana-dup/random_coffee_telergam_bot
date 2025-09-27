@@ -3,7 +3,7 @@ from aiogram.types import (KeyboardButton,
                            InlineKeyboardMarkup)
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
-from texts import (
+from ..texts import (
     KEYBOARD_BUTTON_TEXTS,
     INLINE_BUTTON_TEXTS,
     INTERVAL_TEXTS,

@@ -4,50 +4,51 @@ from collections import defaultdict
 from datetime import datetime
 
 from aiogram import Bot
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, func, or_, cast, Date, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import User, Pair, Setting
-from services.admin_service import notify_users_about_pairs
+from ..database.models import User, Pair, Setting
+from ..services.admin_service import notify_users_about_pairs
+
 
 logger = logging.getLogger(__name__)
 
 
-async def get_users_ready_for_matching(session: AsyncSession) -> list[User]:
-    """Выбираем пользователей для участия в формировании пар по правилам."""
+async def get_users_ready_for_pairing(session: AsyncSession) -> list['User']:
+    """
+    Отбирает всех юзеров готовых для формирования пар.
 
-    result = await session.execute(select(Setting)
-                                   .filter_by(key='global_interval'))
-    setting = result.scalars().first()
-    global_interval = setting.value if setting else 2
+    У таких юзеров:
+    - статус Активен (is_activa == True);
+    - они не на паузе, либо дата окончания паузы уже прошла (
+        pause_until == Null or pause_until < today);
+    - прошло достаточно времени с их последней встречи (
+        задан личном интервале: today - pairing_interval <= last_paired_at,
+        не задан: today - global_interval <= last_paired_at).
+    """
 
-    result = await session.execute(select(User))
-    users = result.scalars().all()
-    selected_users = []
-    today = datetime.utcnow().date()
+    setting_result = await session.execute(
+        select(Setting.global_interval).where(Setting.id == 1))
+    global_interval_weeks = setting_result.scalar_one()
 
-    for user in users:
-        if user.pause_until and user.pause_until > today:
-            continue
+    today_date = cast(func.timezone('UTC', func.now()), Date)
+    coalesced_weeks = func.coalesce(User.pairing_interval,
+                                    bindparam('global_weeks'))
+    threshold_datetime = (func.timezone('UTC', func.now())
+                          - func.make_interval(0, 0, coalesced_weeks))
+    threshold_date = cast(threshold_datetime, Date)
 
-        user_interval = user.pairing_interval or global_interval
+    stmt = (
+        select(User).where(
+            User.is_active.is_(True),
+            or_(User.pause_until.is_(None), User.pause_until <= today_date),
+            or_(User.last_paired_at.is_(None),
+                cast(User.last_paired_at, Date) <= threshold_date))
+    )
 
-        if not user.is_active:
-            if user_interval > global_interval and user.future_meeting == 0:
-                user.future_meeting = 1
-            continue
-
-        if global_interval >= user_interval:
-            user.future_meeting = 0
-            selected_users.append(user)
-        elif user.future_meeting == 1:
-            user.future_meeting = 0
-            selected_users.append(user)
-        else:
-            user.future_meeting = 1
-
-    await session.commit()
-    return selected_users
+    users_result = await session.execute(
+        stmt, {'global_weeks': global_interval_weeks})
+    return list(users_result.scalars().all())
 
 
 async def generate_unique_pairs(session, users: list[User]) -> list[Pair]:
@@ -93,8 +94,7 @@ async def generate_unique_pairs(session, users: list[User]) -> list[Pair]:
     for u1_id, u2_id in pairs:
         u1, u2 = user_map[u1_id], user_map[u2_id]
         pair = Pair(
-            user1_id=u1.id, user2_id=u2.id,
-            paired_at=datetime.utcnow()
+            user1_id=u1.id, user2_id=u2.id
         )
         u1.last_paired_at = datetime.utcnow()
         u2.last_paired_at = datetime.utcnow()
@@ -116,7 +116,9 @@ async def generate_unique_pairs(session, users: list[User]) -> list[Pair]:
 
 async def auto_pairing(session_maker, bot: Bot):
     async with session_maker() as session:
-        users = await get_users_ready_for_matching(session)
+        users = await get_users_ready_for_pairing(session)
+        logger.info(f'Юзеры, готовые к парингу: {users}')
+
         if len(users) < 2:
             logger.info('❗ Недостаточно пользователей для формирования пар.')
             return

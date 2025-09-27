@@ -1,8 +1,9 @@
 from aiogram.filters import BaseFilter
 from aiogram import types
-from database.db import AsyncSessionLocal
-from config import load_config
-from services.user_service import get_user_by_telegram_id
+
+from ..database.db import AsyncSessionLocal
+from ..config import load_config
+from ..services.user_service import get_user_by_telegram_id
 
 
 config = load_config()

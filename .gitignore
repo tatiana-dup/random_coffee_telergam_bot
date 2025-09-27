@@ -22,3 +22,5 @@ alembic/versions/6c5049ddd86d_initial.py
 *.iml
 
 credentials.json
+
+.pytest_cache/

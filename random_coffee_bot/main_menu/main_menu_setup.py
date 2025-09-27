@@ -6,9 +6,9 @@ from aiogram.types import (BotCommandScopeDefault,
                            MenuButtonCommands,
                            MenuButtonDefault)
 
-from config import load_config
-from main_menu import commands as c
-from services.admin_service import get_admin_list
+from ..config import load_config
+from ..main_menu import commands as c
+from ..services.admin_service import get_admin_list
 
 
 logger = logging.getLogger(__name__)

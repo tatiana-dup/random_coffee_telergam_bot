@@ -12,15 +12,16 @@ from gspread.exceptions import (
     WorksheetNotFound
 )
 from oauth2client.client import HttpAccessTokenRefreshError
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
-from bot import get_next_pairing_date
-from database.db import AsyncSessionLocal
-from filters.admin_filters import (
+from ..database.db import AsyncSessionLocal
+from ..database.models import Setting
+from ..filters.admin_filters import (
     AdminMessageFilter,
     AdminCallbackFilter
 )
-from keyboards.admin_buttons import (
+from ..keyboards.admin_buttons import (
     buttons_kb_admin,
     generate_inline_manage,
     generate_inline_confirm_change_interval,
@@ -34,16 +35,14 @@ from keyboards.admin_buttons import (
     PageCallbackFactory,
     UsersCallbackFactory
 )
-from keyboards.user_buttons import (create_active_user_keyboard,
+from ..keyboards.user_buttons import (create_active_user_keyboard,
                                     create_inactive_user_keyboard)
-from services import admin_service as adm
-from services.constants import DATE_FORMAT
-from services.user_service import create_user, get_user_by_telegram_id
-from states.admin_states import FSMAdminPanel
-from texts import ADMIN_TEXTS, COMMANDS_TEXT, KEYBOARD_BUTTON_TEXTS
-
-from sqlalchemy import select
-from database.models import Setting
+from ..services import admin_service as adm
+from ..services.constants import DATE_FORMAT
+from ..services.user_service import create_user, get_user_by_telegram_id
+from ..states.admin_states import FSMAdminPanel
+from ..texts import ADMIN_TEXTS, COMMANDS_TEXT, KEYBOARD_BUTTON_TEXTS
+from ..utils.scheduler import get_next_pairing_date
 
 
 logger = logging.getLogger(__name__)
@@ -863,7 +862,7 @@ async def process_button_on_off(message: Message):
             setting = await session.execute(select(Setting))
             setting_obj = setting.scalar_one_or_none()
 
-            if setting_obj and setting_obj.auto_pairing_paused:
+            if setting_obj and not setting_obj.is_pairing_on:
                 await message.answer(
                     ADMIN_TEXTS['ask_for_pairing_on'].format(
                         status=next_pairing_date),
@@ -887,8 +886,8 @@ async def pause_pairing_handler(callback: CallbackQuery):
             setting = await session.execute(select(Setting))
             setting_obj = setting.scalar_one_or_none()
 
-            if setting_obj and not setting_obj.auto_pairing_paused:
-                setting_obj.auto_pairing_paused = True
+            if setting_obj and not not setting_obj.is_pairing_on:
+                setting_obj.is_pairing_on = False
                 await session.commit()
                 await callback.message.edit_text(
                     ADMIN_TEXTS['notice_pairing_off'])
@@ -909,8 +908,8 @@ async def resume_pairing_handler(callback: CallbackQuery):
             setting = await session.execute(select(Setting))
             setting_obj = setting.scalar_one_or_none()
 
-            if setting_obj and setting_obj.auto_pairing_paused:
-                setting_obj.auto_pairing_paused = False
+            if setting_obj and not setting_obj.is_pairing_on:
+                setting_obj.is_pairing_on = True
                 await session.commit()
                 next_pairing_date = await get_next_pairing_date()
                 await callback.message.edit_text(

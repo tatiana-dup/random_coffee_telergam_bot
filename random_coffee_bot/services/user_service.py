@@ -5,9 +5,9 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import load_config
-from database.models import Setting, User
-from texts import ADMIN_TEXTS, INTERVAL_TEXTS, USER_TEXTS
+from ..config import load_config
+from ..database.models import Setting, User
+from ..texts import ADMIN_TEXTS, INTERVAL_TEXTS, USER_TEXTS
 
 logger = logging.getLogger(__name__)
 
@@ -227,14 +227,14 @@ async def create_text_with_interval(
     return data_text
 
 
-async def get_global_interval(session: AsyncSession) -> Optional[int]:
+async def get_global_interval(session: AsyncSession) -> int:
     """
     Возвращает из базы данных значение глобального интервала.
     """
     result = await session.execute(
-        select(Setting.value).where(Setting.key == 'global_interval')
+        select(Setting.global_interval).where(Setting.id == 1)
     )
-    return result.scalar()
+    return result.scalar_one()
 
 
 async def get_user_interval(

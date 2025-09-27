@@ -15,8 +15,10 @@ services:
       - postgres_data:/var/lib/postgresql/data
     expose:
       - "5432"
-    networks:
-      - internal
+    environment:
+      - APPLY_MIGRATIONS=0
+    # networks:
+    #   - internal
 
   app:
     build: .
@@ -33,12 +35,20 @@ services:
       - ./random_coffee_bot/.env
     depends_on:
       - db
-    networks:
-      - internal
+    # networks:
+    #   - internal
 
-networks:
-  internal:
-    driver: bridge
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+# networks:
+#   internal:
+#     driver: bridge
 
 volumes:
   postgres_data:

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from config import Config, load_config
+from ..config import Config, load_config
 
 
 config: Config = load_config()

@@ -1,6 +1,6 @@
 from aiogram.types import BotCommand
 
-from texts import COMMANDS_DESCRIPTION_TEXT
+from ..texts import COMMANDS_DESCRIPTION_TEXT
 
 
 command_add_admin = BotCommand(command='/add_admin',

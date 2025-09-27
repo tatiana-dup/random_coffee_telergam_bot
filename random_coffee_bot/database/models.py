@@ -1,8 +1,12 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import (BigInteger, Boolean, Column, Integer,
-                        DateTime, Date, ForeignKey, String, Text)
-from sqlalchemy.orm import DeclarativeBase, declared_attr, relationship
+from sqlalchemy import (BigInteger, Boolean, CheckConstraint, DateTime,
+                        Date, Integer, ForeignKey, func, String, Text)
+from sqlalchemy.orm import (DeclarativeBase,
+                            declared_attr,
+                            Mapped,
+                            mapped_column,
+                            relationship)
 
 
 class Base(DeclarativeBase):
@@ -15,100 +19,100 @@ class CommonMixin:
     def __tablename__(cls):
         return cls.__name__.lower()
 
-    id = Column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
 
 
 class User(CommonMixin, Base):
     """Таблица пользователя."""
 
-    telegram_id = Column(BigInteger, unique=True, nullable=False)
-    username = Column(String, nullable=True)
-    first_name = Column(String, nullable=True)
-    last_name = Column(String, nullable=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True,
+                                             nullable=False)
+    username: Mapped[str | None] = mapped_column(String, nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    is_active = Column(Boolean, default=True, nullable=False)
-    has_permission = Column(Boolean, default=True, nullable=False)
-    is_blocked = Column(Boolean, default=False, nullable=False)
-    is_admin = Column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True,
+                                            nullable=False)
+    has_permission: Mapped[bool] = mapped_column(Boolean, default=True,
+                                                 nullable=False)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False,
+                                             nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False,
+                                           nullable=False)
 
-    pairing_interval = Column(Integer, nullable=True)
-    last_paired_at = Column(Date, nullable=True)
-    future_meeting = Column(Integer, default=1)
-    pause_until = Column(Date, nullable=True)
-    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    pairing_interval: Mapped[int | None] = mapped_column(Integer,
+                                                         nullable=True)
+    last_paired_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    pause_until: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    pairs_as_user1 = relationship(
-        "Pair",
-        foreign_keys="Pair.user1_id",
-        back_populates="user1"
+    pairs_as_user1: Mapped[list['Pair']] = relationship(
+        'Pair',
+        foreign_keys='Pair.user1_id',
+        back_populates='user1'
     )
-    pairs_as_user2 = relationship(
-        "Pair",
-        foreign_keys="Pair.user2_id",
-        back_populates="user2"
+    pairs_as_user2: Mapped[list['Pair']] = relationship(
+        'Pair',
+        foreign_keys='Pair.user2_id',
+        back_populates='user2'
     )
-    pairs_as_user3 = relationship(
-        "Pair",
-        foreign_keys="Pair.user3_id",
-        back_populates="user3"
+    pairs_as_user3: Mapped[list['Pair']] = relationship(
+        'Pair',
+        foreign_keys='Pair.user3_id',
+        back_populates='user3'
     )
-
-    feedbacks = relationship("Feedback", back_populates="user")
 
 
 class Pair(CommonMixin, Base):
     """Таблица пар."""
 
-    user1_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    user2_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    user3_id = Column(Integer, ForeignKey('user.id'), nullable=True)
+    user1_id: Mapped[int] = mapped_column(Integer,
+                                          ForeignKey('user.id'),
+                                          nullable=False)
+    user2_id: Mapped[int] = mapped_column(Integer,
+                                          ForeignKey('user.id'),
+                                          nullable=False)
+    user3_id: Mapped[int | None] = mapped_column(Integer,
+                                                 ForeignKey('user.id'),
+                                                 nullable=True)
 
-    feedback_sent = Column(Boolean, default=False)
-    paired_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    user1 = relationship(
-        "User", foreign_keys=[user1_id], back_populates="pairs_as_user1"
+    user1: Mapped[User] = relationship(
+        'User', foreign_keys=[user1_id], back_populates='pairs_as_user1'
     )
-    user2 = relationship(
-        "User", foreign_keys=[user2_id], back_populates="pairs_as_user2"
+    user2: Mapped[User] = relationship(
+        'User', foreign_keys=[user2_id], back_populates='pairs_as_user2'
     )
-    user3 = relationship(
-        "User", foreign_keys=[user3_id], back_populates="pairs_as_user3"
-    )
-
-    feedbacks = relationship(
-        "Feedback", back_populates="pair", cascade="all, delete"
+    user3: Mapped[User | None] = relationship(
+        'User', foreign_keys=[user3_id], back_populates='pairs_as_user3'
     )
 
 
-class Feedback(CommonMixin, Base):
-    """Таблица с обратной связью."""
-
-    pair_id = Column(Integer, ForeignKey('pair.id'), nullable=False)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-
-    did_meet = Column(Boolean, default=False, nullable=True)
-    comment = Column(Text, nullable=True)
-    submitted_at = Column(DateTime, default=datetime.utcnow)
-
-    pair = relationship("Pair", back_populates="feedbacks")
-    user = relationship("User", back_populates="feedbacks")
-
-
-class Setting(Base):
+class Setting(CommonMixin, Base):
     """Таблица для изменяемых настроек работы бота."""
-    __tablename__ = 'settings'
 
-    id = Column(Integer, primary_key=True)
-    key = Column(String, unique=True, nullable=False, default="global_interval")
-    value = Column(Integer, nullable=False, default=2)
-    first_matching_date = Column(DateTime, default=datetime(2025, 5, 15, 10, 0))
-    auto_pairing_paused = Column(Boolean, default=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    global_interval: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                 default=2)
+    first_pairing_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False)
+    is_pairing_on: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                default=False)
+
+    updated_at = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint('id = 1', name='settings_singleton'),
+    )
 
 
 class Notification(CommonMixin, Base):
     """Таблица для текстов рассылки от админа."""
 
-    text = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    sent_at = Column(DateTime, nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                     nullable=True)

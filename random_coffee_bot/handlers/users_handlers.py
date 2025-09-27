@@ -8,9 +8,9 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
-from database.db import AsyncSessionLocal
-from database.models import User
-from keyboards.user_buttons import (
+from ..database.db import AsyncSessionLocal
+from ..database.models import User
+from ..keyboards.user_buttons import (
     create_active_user_keyboard,
     create_activate_keyboard,
     create_deactivate_keyboard,
@@ -19,7 +19,7 @@ from keyboards.user_buttons import (
     generate_inline_interval,
     yes_or_no_keyboard,
 )
-from services.user_service import (
+from ..services.user_service import (
     create_user,
     create_text_for_select_an_interval,
     create_text_with_default_interval,
@@ -34,8 +34,8 @@ from services.user_service import (
     create_text_with_interval,
 )
 
-from states.user_states import FSMUserForm
-from texts import (
+from ..states.user_states import FSMUserForm
+from ..texts import (
     KEYBOARD_BUTTON_TEXTS,
     USER_TEXTS,
     ADMIN_TEXTS,
