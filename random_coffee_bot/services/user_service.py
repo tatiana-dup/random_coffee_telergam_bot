@@ -182,8 +182,14 @@ async def create_text_for_select_an_interval(
     """
     admin_current_interval = await get_global_interval(session)
 
+    admin_interval_text = (
+        INTERVAL_TEXTS.get(str(admin_current_interval))
+        if admin_current_interval
+        else ADMIN_TEXTS['no_data']
+    )
+
     data_text = text.format(
-        their_interval=admin_current_interval
+        their_interval=admin_interval_text
     )
     return data_text
 
@@ -192,7 +198,7 @@ async def create_text_with_interval(
     session: AsyncSession, text: str, user_id: int
 ) -> str:
     """
-    Создает текст для ответа когда пользоватеь
+    Создает текст для ответа, когда пользоватеь
     решил изменить интервал встреч.
     """
     admin_current_interval = await get_global_interval(session)

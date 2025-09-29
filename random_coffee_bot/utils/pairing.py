@@ -1,7 +1,7 @@
 import logging
 import random
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, UTC
 
 from aiogram import Bot
 from sqlalchemy import select, func, or_, cast, Date, bindparam
@@ -96,14 +96,14 @@ async def generate_unique_pairs(session, users: list[User]) -> list[Pair]:
         pair = Pair(
             user1_id=u1.id, user2_id=u2.id
         )
-        u1.last_paired_at = datetime.utcnow()
-        u2.last_paired_at = datetime.utcnow()
+        u1.last_paired_at = datetime.now(UTC)
+        u2.last_paired_at = datetime.now(UTC)
         session.add(pair)
         pair_objs.append(pair)
 
     if remaining:
         odd = user_map[remaining[0]]
-        odd.last_paired_at = datetime.utcnow()
+        odd.last_paired_at = datetime.now(UTC)
         if pair_objs:
             last_pair = pair_objs[-1]
             last_pair.user3_id = odd.id
