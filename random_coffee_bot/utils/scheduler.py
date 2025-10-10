@@ -164,6 +164,8 @@ async def schedule_pairing_jobs(session_maker):
 
     if not scheduler.running:
         scheduler.add_listener(job_listener, EVENT_JOB_EXECUTED)
+        logger.info(
+            f'Старт планировщика: {scheduler.get_jobs()}')
         scheduler.start()
 
     if current_interval != setting_interval:

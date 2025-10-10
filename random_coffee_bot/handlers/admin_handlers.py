@@ -36,13 +36,14 @@ from ..keyboards.admin_buttons import (
     UsersCallbackFactory
 )
 from ..keyboards.user_buttons import (create_active_user_keyboard,
-                                    create_inactive_user_keyboard)
+                                      create_inactive_user_keyboard)
 from ..services import admin_service as adm
 from ..services.constants import DATE_FORMAT
 from ..services.user_service import create_user, get_user_by_telegram_id
 from ..states.admin_states import FSMAdminPanel
 from ..texts import ADMIN_TEXTS, COMMANDS_TEXT, KEYBOARD_BUTTON_TEXTS
-from ..utils.scheduler import get_next_pairing_date
+# from ..utils.scheduler import get_next_pairing_date
+from ..utils.scheduler_new import change_interval, get_next_pairing_date, pause_pairing, resume_pairing
 
 
 logger = logging.getLogger(__name__)
@@ -585,7 +586,7 @@ async def process_button_change_interval(message: Message):
         logger.error('Ошибка при работе с базой данных')
         await message.answer(ADMIN_TEXTS['db_error'])
 
-    next_pairing_date = await get_next_pairing_date()
+    next_pairing_date = get_next_pairing_date()
 
     data_text = adm.create_text_with_interval(
         ADMIN_TEXTS['confirm_changing_interval'],
@@ -635,7 +636,8 @@ async def process_set_new_interval(callback: CallbackQuery):
         logger.error('Ошибка при работе с базой данных')
         await callback.answer(ADMIN_TEXTS['db_error'])
 
-    next_pairing_date = await get_next_pairing_date()
+    change_interval(current_interval)
+    next_pairing_date = get_next_pairing_date()
     data_text = adm.create_text_with_interval(
         ADMIN_TEXTS['success_new_interval'],
         current_interval, next_pairing_date)
@@ -659,7 +661,7 @@ async def process_cancel_changing_interval(callback: CallbackQuery):
         logger.error('Ошибка при работе с базой данных')
         await callback.answer(ADMIN_TEXTS['db_error'])
 
-    next_pairing_date = await get_next_pairing_date()
+    next_pairing_date = get_next_pairing_date()
     data_text = adm.create_text_with_interval(
         ADMIN_TEXTS['cancel_changing_interval'],
         current_interval, next_pairing_date)
@@ -742,7 +744,7 @@ async def process_get_info(message: Message):
         logger.error('Ошибка при работе с базой данных')
         await message.answer(ADMIN_TEXTS['db_error'])
 
-    next_pairing_date = await get_next_pairing_date()
+    next_pairing_date = get_next_pairing_date()
 
     extra_data = {
         'all_users': number_of_users,
@@ -857,7 +859,7 @@ async def process_cancel_notif(callback: CallbackQuery):
         StateFilter(default_state))
 async def process_button_on_off(message: Message):
     try:
-        next_pairing_date = await get_next_pairing_date()
+        next_pairing_date = get_next_pairing_date()
         async with AsyncSessionLocal() as session:
             setting = await session.execute(select(Setting))
             setting_obj = setting.scalar_one_or_none()
@@ -881,6 +883,7 @@ async def process_button_on_off(message: Message):
 @admin_router.callback_query(F.data == 'confirm_pairing_off',
                              StateFilter(default_state))
 async def pause_pairing_handler(callback: CallbackQuery):
+    pause_pairing()
     try:
         async with AsyncSessionLocal() as session:
             setting = await session.execute(select(Setting))
@@ -903,6 +906,7 @@ async def pause_pairing_handler(callback: CallbackQuery):
 @admin_router.callback_query(F.data == 'confirm_pairing_on',
                              StateFilter(default_state))
 async def resume_pairing_handler(callback: CallbackQuery):
+    resume_pairing()
     try:
         async with AsyncSessionLocal() as session:
             setting = await session.execute(select(Setting))
@@ -911,7 +915,7 @@ async def resume_pairing_handler(callback: CallbackQuery):
             if setting_obj and not setting_obj.is_pairing_on:
                 setting_obj.is_pairing_on = True
                 await session.commit()
-                next_pairing_date = await get_next_pairing_date()
+                next_pairing_date = get_next_pairing_date()
                 await callback.message.edit_text(
                     ADMIN_TEXTS['notice_pairing_on'].format(
                         next_pairing_date=next_pairing_date))

@@ -20,6 +20,7 @@ from .main_menu.main_menu_setup import set_main_menu_on_bot_start
 from .middlewares import AccessMiddleware
 from .utils.bootstrap_settings import ensure_app_settings
 from .utils.scheduler import schedule_pairing_jobs
+from .utils.scheduler_new import start_scheduler, shutdown_scheduler
 
 
 async def main():
@@ -64,7 +65,14 @@ async def main():
     # scheduler.start()  # Для прода закоментировать
     # scheduler.remove_all_jobs()  # Для прода закоментировать
 
-    await schedule_pairing_jobs(session_maker)
+    # await schedule_pairing_jobs(session_maker)
+    @dp.startup()
+    async def on_startup(bot: Bot):
+        await start_scheduler(bot)
+
+    @dp.shutdown()
+    def on_shutdown(bot: Bot):
+        shutdown_scheduler()
 
     await dp.start_polling(bot)
 
