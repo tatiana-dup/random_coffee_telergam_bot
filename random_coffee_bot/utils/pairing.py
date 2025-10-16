@@ -8,7 +8,8 @@ from sqlalchemy import select, func, or_, cast, Date, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import User, Pair, Setting
-from ..services.admin_service import notify_users_about_pairs
+from ..services.admin_service import (notify_admins_about_pairing,
+                                      notify_users_about_pairs)
 
 
 logger = logging.getLogger(__name__)
@@ -114,13 +115,14 @@ async def generate_unique_pairs(session, users: list[User]) -> list[Pair]:
     return pair_objs
 
 
-async def auto_pairing(session_maker, bot: Bot):
+async def auto_pairing(session_maker, bot: Bot, admin_id_list: list[int]):
     async with session_maker() as session:
         users = await get_users_ready_for_pairing(session)
         logger.info(f'Юзеры, готовые к парингу: {users}')
 
         if len(users) < 2:
             logger.info('❗ Недостаточно пользователей для формирования пар.')
+            await notify_admins_about_pairing(None, bot, admin_id_list)
             return
 
         pairs = await generate_unique_pairs(session, users)
@@ -129,3 +131,4 @@ async def auto_pairing(session_maker, bot: Bot):
         logger.info(f'✅ Сформировано {len(pairs)} пар.')
 
         await notify_users_about_pairs(session, pairs, bot)
+        await notify_admins_about_pairing(len(pairs), bot, admin_id_list)

@@ -71,7 +71,8 @@ def load_config(path: str | None = None) -> Config:
         tg_bot=TgBot(
             token=env('BOT_TOKEN'),
             group_tg_id=env.int('TELEGRAM_ID_PROJECT_GROUP'),
-            admins_list=env.list('ADMIN_ID_LIST', subcast=int),
+            admins_list=[int(x) for x in env.str('ADMIN_ID_LIST', ''
+                                                 ).split(',') if x.strip()],
             admin_username=env('ADMIN_TG_USERNAME')
         ),
         db=DatabaseConfig(

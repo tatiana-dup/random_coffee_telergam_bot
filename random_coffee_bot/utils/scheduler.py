@@ -35,7 +35,7 @@ current_interval = None
 
 
 async def auto_pairing_wrapper():
-    bot, dispatcher, session_maker = job_context.get_context()
+    session_maker = job_context.session_maker
 
     async with session_maker() as session:
         result = await session.execute(select(Setting.is_pairing_on)
@@ -47,7 +47,9 @@ async def auto_pairing_wrapper():
                         '(флаг в настройках).')
             return
 
-    await auto_pairing(session_maker, bot)
+    await auto_pairing(session_maker,
+                       job_context.bot,
+                       job_context.admin_id_list)
 
 
 async def reload_scheduled_wrapper():

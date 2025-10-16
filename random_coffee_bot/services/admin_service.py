@@ -697,6 +697,43 @@ async def notify_users_about_pairs(session: AsyncSession,
                                  f'telegram_id={user.telegram_id}.')
 
 
+def get_russian_form_for_pair_word(pair_amount: int) -> str:
+    index = pair_amount % 10
+    if index == 1:
+        return 'пара'
+    elif 2 <= index <= 4:
+        return 'пары'
+    else:
+        return 'пар'
+
+
+async def get_text_about_pairing(pair_amount: Optional[int]) -> str:
+
+    if pair_amount:
+        pair_form = get_russian_form_for_pair_word(pair_amount)
+        text = ADMIN_TEXTS['pair_amount_message'].format(
+            pair_amount=pair_amount,
+            pair_form=pair_form)
+    else:
+        text = ADMIN_TEXTS['no_pairs_message']
+    return text
+
+
+async def notify_admins_about_pairing(pair_amount: Optional[int],
+                                      bot: Bot,
+                                      admin_id_list: list[int]):
+    text = await get_text_about_pairing(pair_amount)
+
+    for admin_id in admin_id_list:
+        try:
+            await bot.send_message(chat_id=admin_id,
+                                   text=text,
+                                   parse_mode="HTML")
+        except Exception:
+            logger.exception('⚠️ Не удалось отправить сообщение админу '
+                             f'telegram_id={admin_id}.')
+
+
 async def refresh_all_usernames(session: AsyncSession, bot: Bot) -> None:
     """
     Фоновая задача: пробегаем по всем users и обновляем username

@@ -43,7 +43,7 @@ async def main():
         token=config.tg_bot.token
     )
     dp = Dispatcher()
-    job_context.set_context(bot, dp, session_maker)
+    job_context.set_context(bot, dp, session_maker, admins_list)
     dp.workflow_data.update({
         'group_tg_id': group_tg_id,
         'admins_list': admins_list,
