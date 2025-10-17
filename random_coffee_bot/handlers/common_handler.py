@@ -1,6 +1,8 @@
 import logging
 
-from aiogram import Router
+from aiogram import F, Router
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.state import default_state
 from aiogram.exceptions import (AiogramError,
                                 TelegramAPIError,
                                 TelegramBadRequest,
@@ -9,12 +11,52 @@ from aiogram.exceptions import (AiogramError,
                                 TelegramRetryAfter)
 from aiogram.types import CallbackQuery, ErrorEvent, Message
 
-from ..texts import USER_TEXTS
+from ..database.db import AsyncSessionLocal
+from ..services.user_service import create_text_random_coffee
+from ..texts import KEYBOARD_BUTTON_TEXTS, USER_TEXTS
 
 
 logger = logging.getLogger(__name__)
 
 common_router = Router()
+
+
+@common_router.message(
+        F.text == KEYBOARD_BUTTON_TEXTS['button_how_it_works'],
+        StateFilter(default_state))
+async def text_random_coffee(message: Message):
+    """
+    Выводит текст о том как работает Random_coffee
+    """
+    async with AsyncSessionLocal() as session:
+        text = await create_text_random_coffee(session)
+        await message.answer(text, parse_mode='HTML')
+
+
+@common_router.message(Command('help'), StateFilter(default_state))
+async def proccess_comand_help(message: Message):
+    """
+    Хэндлер обрабатывает команду /help.
+    """
+    await message.answer(USER_TEXTS['command_help'], parse_mode='HTML')
+
+
+@common_router.message(F.text, StateFilter(default_state))
+async def fallback_handler(message: Message):
+    """
+    Хэндлер срабатывает, когда юзер отправляет неизвестную
+    команду или просто текст, который мы не ожидаем.
+    """
+    await message.answer(USER_TEXTS['no_now'])
+
+
+@common_router.message(StateFilter(default_state))
+async def other_type_handler(message: Message):
+    """
+    Хэндлер срабатывает, когда юзер отправляет что-то кроме текста,
+    что бот не может обработать.
+    """
+    await message.answer(USER_TEXTS['user_unknown_type_data'])
 
 
 @common_router.callback_query()

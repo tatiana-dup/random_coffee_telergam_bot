@@ -1,7 +1,7 @@
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
 from aiogram.types import CallbackQuery, Message
@@ -10,9 +10,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..database.db import AsyncSessionLocal
 from ..database.models import User
+from ..filters.user_filter import ActiveUserFilter
 from ..keyboards.user_buttons import (
     create_active_user_keyboard,
-    create_activate_keyboard,
     create_deactivate_keyboard,
     create_inactive_user_keyboard,
     generate_inline_confirm_change_interval,
@@ -20,10 +20,8 @@ from ..keyboards.user_buttons import (
     yes_or_no_keyboard,
 )
 from ..services.user_service import (
-    create_user,
     create_text_for_select_an_interval,
     create_text_with_default_interval,
-    create_text_random_coffee,
     create_text_status_active,
     get_user_by_telegram_id,
     parse_callback_data,
@@ -45,54 +43,13 @@ from ..texts import (
 
 logger = logging.getLogger(__name__)
 
-user_router = Router()
+active_user_router = Router()
+active_user_router.message.filter(ActiveUserFilter())
+active_user_router.callback_query.filter(ActiveUserFilter())
 
 
-@user_router.message(CommandStart(), StateFilter(default_state))
-async def process_start_command(message: Message, state: FSMContext):
-    """
-    Хэндлер для команды /start. Регистрирует нового пользователя.
-    Если поль-ль уже существует, обновляет его статус is_active = True.
-    """
-    logger.debug('Вошли в хэндлер, обрабатывающий команду /start')
-    if message.from_user is None:
-        return await message.answer(USER_TEXTS['error_access'])
-
-    user_telegram_id = message.from_user.id
-
-    try:
-        async with AsyncSessionLocal() as session:
-            user = await get_user_by_telegram_id(session, user_telegram_id)
-
-            if user is None:
-                logger.debug('Пользователя нет в БД. Приступаем к добавлению.')
-                user = await create_user(session,
-                                         user_telegram_id,
-                                         message.from_user.username,
-                                         message.from_user.first_name,
-                                         message.from_user.last_name)
-                logger.debug(f'Пользователь добавлен в БД. '
-                             f'Имя {user.first_name}. Фамилия {user.last_name}'
-                             )
-                await message.answer(USER_TEXTS['start'])
-                await message.answer(USER_TEXTS['ask_first_name'])
-                await state.set_state(FSMUserForm.waiting_for_first_name)
-            else:
-                if not user.is_active:
-                    await set_user_active(session, user_telegram_id, True)
-                    logger.debug('Статус пользователя изменен на Активный.')
-                await update_username(session, user_telegram_id,
-                                      message.from_user.username)
-                await message.answer(
-                    USER_TEXTS['re_start'],
-                    reply_markup=create_active_user_keyboard())
-    except SQLAlchemyError as e:
-        logger.error('Ошибка при работе с базой данных: %s', str(e))
-        await message.answer(USER_TEXTS['db_error'])
-
-
-@user_router.message(StateFilter(FSMUserForm.waiting_for_first_name),
-                     F.text.regexp(NAME_PATTERN))
+@active_user_router.message(StateFilter(FSMUserForm.waiting_for_first_name),
+                            F.text.regexp(NAME_PATTERN))
 async def process_first_name_sending(message: Message, state: FSMContext):
     """
     Хэндлер срабатывает в состоянии, когда мы ждем от пользователя его имя,
@@ -129,7 +86,7 @@ async def process_first_name_sending(message: Message, state: FSMContext):
         await message.answer(USER_TEXTS['db_error'])
 
 
-@user_router.message(StateFilter(FSMUserForm.waiting_for_first_name))
+@active_user_router.message(StateFilter(FSMUserForm.waiting_for_first_name))
 async def warning_not_first_name(message: Message):
     """
     Хэндлер срабатывает в состоянии, когда мы ждем от пользователя его имя,
@@ -141,8 +98,9 @@ async def warning_not_first_name(message: Message):
     await message.answer(USER_TEXTS['not_first_name'])
 
 
-@user_router.message(StateFilter(FSMUserForm.waiting_for_last_name),
-                     F.text.regexp(NAME_PATTERN))
+@active_user_router.message(
+        StateFilter(FSMUserForm.waiting_for_last_name),
+        F.text.regexp(NAME_PATTERN))
 async def process_last_name_sending(message: Message, state: FSMContext):
     """
     Хэндлер срабатывает в состоянии, когда мы ждем от пользователя
@@ -182,7 +140,7 @@ async def process_last_name_sending(message: Message, state: FSMContext):
         await message.answer(USER_TEXTS['db_error'])
 
 
-@user_router.message(StateFilter(FSMUserForm.waiting_for_last_name))
+@active_user_router.message(StateFilter(FSMUserForm.waiting_for_last_name))
 async def warning_not_last_name(message: Message):
     """
     Хэндлер срабатывает в состоянии, когда мы ждем от пользователя его фамилию,
@@ -196,7 +154,7 @@ async def warning_not_last_name(message: Message):
     await message.answer(USER_TEXTS['not_last_name'])
 
 
-@user_router.message(
+@active_user_router.message(
     F.text == KEYBOARD_BUTTON_TEXTS['button_stop_participation'],
     StateFilter(default_state)
 )
@@ -227,30 +185,9 @@ async def pause_participation(message: Message):
         await message.answer(USER_TEXTS['status_inactive'])
 
 
-@user_router.message(
-    F.text == KEYBOARD_BUTTON_TEXTS['button_resume_participation'],
-    StateFilter(default_state)
-)
-async def resume_participation(message: Message):
-    """
-    Хэндлер для возобновления участия пользователя.
-    """
-    telegram_id = message.from_user.id
-
-    async with AsyncSessionLocal() as session:
-        user = await get_user_by_telegram_id(session, telegram_id)
-
-    if user and not user.is_active:
-        await message.answer(
-            USER_TEXTS['confirm_resume'],
-            reply_markup=create_activate_keyboard()
-        )
-    else:
-        await message.answer(USER_TEXTS['status_active'])
-
-
-@user_router.callback_query(lambda c: c.data.startswith('confirm_deactivate_'),
-                            StateFilter(default_state))
+@active_user_router.callback_query(
+        lambda c: c.data.startswith('confirm_deactivate_'),
+        StateFilter(default_state))
 async def process_deactivate_confirmation(callback_query: CallbackQuery):
     """
     Хэндлер для обработки подтверждения приостановки участия.
@@ -298,59 +235,7 @@ async def process_deactivate_confirmation(callback_query: CallbackQuery):
             )
 
 
-@user_router.callback_query(lambda c: c.data.startswith('confirm_activate_'),
-                            StateFilter(default_state))
-async def process_activate_confirmation(callback_query: CallbackQuery):
-    """
-    Хэндлер для обработки подтверждения возобновления участия.
-    """
-    telegram_id = callback_query.from_user.id
-
-    async with AsyncSessionLocal() as session:
-        user = await get_user_by_telegram_id(session, telegram_id)
-
-        if user is None:
-            await callback_query.answer(
-                USER_TEXTS['user_not_found'],
-                show_alert=True
-            )
-            return
-
-        try:
-            await callback_query.message.delete()
-
-            if callback_query.data == 'confirm_activate_yes':
-                if not user.is_active:
-                    await set_user_active(session, telegram_id, True)
-                    await update_username(session, telegram_id,
-                                          callback_query.from_user.username)
-                    await callback_query.message.answer(
-                        USER_TEXTS['participation_resumed'],
-                        reply_markup=create_active_user_keyboard()
-                    )
-                else:
-                    await callback_query.answer(
-                        USER_TEXTS['status_active'],
-                        show_alert=True
-                    )
-
-            elif callback_query.data == 'confirm_activate_no':
-                await callback_query.answer(
-                    USER_TEXTS['status_not_changed'],
-                    show_alert=True
-                )
-
-            await callback_query.answer()
-
-        except Exception as e:
-            logger.error(f'Произошла ошибка: {e}')
-            await callback_query.answer(
-                USER_TEXTS['error_occurred'],
-                show_alert=True
-            )
-
-
-@user_router.message(
+@active_user_router.message(
     F.text == KEYBOARD_BUTTON_TEXTS['button_change_my_details'],
     StateFilter(default_state)
 )
@@ -383,7 +268,7 @@ async def update_full_name(message: Message):
         await message.answer(ADMIN_TEXTS['db_error'])
 
 
-@user_router.callback_query(
+@active_user_router.callback_query(
     lambda c: c.data.startswith('change_my_details_yes'),
     StateFilter(default_state)
 )
@@ -397,7 +282,7 @@ async def update_full_name_yes(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@user_router.callback_query(
+@active_user_router.callback_query(
     lambda c: c.data.startswith('change_my_details_no'),
     StateFilter(default_state)
 )
@@ -410,7 +295,7 @@ async def no_update(callback: CallbackQuery):
     await callback.answer()
 
 
-@user_router.message(
+@active_user_router.message(
     F.text == KEYBOARD_BUTTON_TEXTS['button_my_status'],
     StateFilter(default_state))
 async def status_active(message: Message):
@@ -438,9 +323,15 @@ async def status_active(message: Message):
         await message.answer(USER_TEXTS['status_not_sent'])
 
 
-@user_router.message(F.text == KEYBOARD_BUTTON_TEXTS['button_edit_meetings'],
-                     StateFilter(default_state))
+@active_user_router.message(
+        F.text == KEYBOARD_BUTTON_TEXTS['button_edit_meetings'],
+        StateFilter(default_state))
 async def process_frequency(message: Message):
+    """
+    Хэндлер срабатывает при нажатии юзером кнопки меню для изменения интервала
+    участия, отправляет ему инлайн-клавиатуру для подтверждения изменения
+    интервала.
+    """
     try:
         async with AsyncSessionLocal() as session:
             user_id = message.from_user.id
@@ -476,11 +367,16 @@ async def process_frequency(message: Message):
         await message.answer(USER_TEXTS['status_not_sent'])
 
 
-@user_router.callback_query(
+@active_user_router.callback_query(
     lambda c: c.data.startswith('confirm_changing_interval'),
     StateFilter(default_state)
 )
 async def handle_callback_query_yes(callback: CallbackQuery):
+    """
+    Хэндлер срабатвает, когда юзер поджтверждает, что хочет изменить
+    свой интервал встреч, отправляет юзеру инлайн-клавиатуру с вариантами
+    интервала.
+    """
     await callback.message.delete()
     try:
         async with AsyncSessionLocal() as session:
@@ -501,7 +397,7 @@ async def handle_callback_query_yes(callback: CallbackQuery):
     await callback.answer()
 
 
-@user_router.callback_query(
+@active_user_router.callback_query(
     lambda c: c.data.startswith('new_interval:') or c.data.startswith(
         'change_interval'
     ),
@@ -553,14 +449,14 @@ async def process_set_or_change_interval(callback: CallbackQuery):
     await callback.answer()
 
 
-@user_router.callback_query(
+@active_user_router.callback_query(
     lambda c: c.data.startswith('cancel_changing_interval'),
     StateFilter(default_state)
 )
 async def handle_callback_query_no(callback: CallbackQuery):
     """
-    Обрабатывает нажатие на инлайн кнопку 'нет'
-    во время изминения интервала встреч.
+    Обрабатывает нажатие на инлайн-кнопку 'нет' для отмены
+    изминения интервала встреч.
     """
     try:
         async with AsyncSessionLocal() as session:
@@ -575,40 +471,3 @@ async def handle_callback_query_no(callback: CallbackQuery):
         logger.error(f'Ошибка при работе с базой данных: {e}')
         await callback.answer(ADMIN_TEXTS['db_error'])
     await callback.answer()
-
-
-@user_router.message(F.text == KEYBOARD_BUTTON_TEXTS['button_how_it_works'],
-                     StateFilter(default_state))
-async def text_random_coffee(message: Message):
-    """
-    Выводит текст о том как работает Random_coffee
-    """
-    async with AsyncSessionLocal() as session:
-        text = await create_text_random_coffee(session)
-        await message.answer(text, parse_mode='HTML')
-
-
-@user_router.message(Command('help'), StateFilter(default_state))
-async def proccess_comand_help(message: Message):
-    """
-    Хэндлер обрабатывает команду /help.
-    """
-    await message.answer(USER_TEXTS['command_help'], parse_mode='HTML')
-
-
-@user_router.message(F.text, StateFilter(default_state))
-async def fallback_handler(message: Message):
-    """
-    Хэндлер срабатывает, когда юзер отправляет неизвестную
-    команду или просто текст, который мы не ожидаем.
-    """
-    await message.answer(USER_TEXTS['no_now'])
-
-
-@user_router.message(StateFilter(default_state))
-async def other_type_handler(message: Message):
-    """
-    Хэндлер срабатывает, когда юзер отправляет что-то кроме текста,
-    что бот не может обработать.
-    """
-    await message.answer(USER_TEXTS['user_unknown_type_data'])

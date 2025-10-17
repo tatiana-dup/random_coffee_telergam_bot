@@ -1,5 +1,7 @@
+from typing import Union
+
 from aiogram.filters import BaseFilter
-from aiogram import types
+from aiogram.types import CallbackQuery, Message
 
 from ..database.db import AsyncSessionLocal
 from ..config import load_config
@@ -10,28 +12,20 @@ config = load_config()
 admins_list = config.tg_bot.admins_list
 
 
-class AdminMessageFilter(BaseFilter):
-    async def __call__(self, message: types.Message) -> bool:
-        '''
-        Фильтр для НЕ ГЛАВНОГО админа.
-        '''
-        user_id = message.from_user.id
+class AdminFilter(BaseFilter):
+    """
+    Фильтр проверяет, что пользователь является админом (обычным или супер)
+    """
+    async def __call__(self, event: Union[CallbackQuery, Message]) -> bool:
+        user_telegram = getattr(event, "from_user", None)
+        user_tg_id = user_telegram.id if user_telegram else None
 
-        if user_id in admins_list:
+        if not user_tg_id:
+            return False
+
+        if user_tg_id in admins_list:
             return True
 
         async with AsyncSessionLocal() as session:
-            user = await get_user_by_telegram_id(session, user_id)
+            user = await get_user_by_telegram_id(session, user_tg_id)
             return user.is_admin if user else False
-
-
-class AdminCallbackFilter(BaseFilter):
-    async def __call__(self, callback_query: types.CallbackQuery) -> bool:
-        user_id = callback_query.from_user.id
-
-        if user_id in admins_list:
-            return True
-
-        async with AsyncSessionLocal() as session:
-            user = await get_user_by_telegram_id(session, user_id)
-            return user is not None and user.is_admin

@@ -6,13 +6,10 @@ from aiogram.fsm.state import default_state
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.context import FSMContext
 
-from ..filters.super_admin_filters import (
-    SuperAdminMessageFilter,
-    SuperAdminCallbackFilter
-)
+from ..filters.super_admin_filters import SuperAdminFilter
 from ..main_menu.main_menu_setup import (commands_for_admin,
-                                       delete_main_menu,
-                                       set_main_menu)
+                                         delete_main_menu,
+                                         set_main_menu)
 from ..states.admin_states import FSMAdminPanel
 from ..services.admin_service import (
     set_user_as_admin,
@@ -23,15 +20,15 @@ from ..services.admin_service import (
 )
 from ..keyboards.admin_buttons import buttons_kb_admin
 from ..keyboards.user_buttons import (create_active_user_keyboard,
-                                    create_inactive_user_keyboard)
+                                      create_inactive_user_keyboard)
 from ..texts import ADMIN_TEXTS, KEYBOARD_BUTTON_TEXTS
 
 logger = logging.getLogger(__name__)
 
 super_admin_router = Router()
 
-super_admin_router.message.filter(SuperAdminMessageFilter())
-super_admin_router.callback_query.filter(SuperAdminCallbackFilter())
+super_admin_router.message.filter(SuperAdminFilter())
+super_admin_router.callback_query.filter(SuperAdminFilter())
 
 
 @super_admin_router.message(Command('add_admin'), StateFilter(default_state))

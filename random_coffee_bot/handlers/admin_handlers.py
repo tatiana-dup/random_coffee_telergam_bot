@@ -17,10 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..database.db import AsyncSessionLocal
 from ..database.models import Setting
-from ..filters.admin_filters import (
-    AdminMessageFilter,
-    AdminCallbackFilter
-)
+from ..filters.admin_filters import AdminFilter
 from ..keyboards.admin_buttons import (
     buttons_kb_admin,
     generate_inline_manage,
@@ -36,7 +33,7 @@ from ..keyboards.admin_buttons import (
     UsersCallbackFactory
 )
 from ..keyboards.user_buttons import (create_active_user_keyboard,
-                                    create_inactive_user_keyboard)
+                                      create_inactive_user_keyboard)
 from ..services import admin_service as adm
 from ..services.constants import DATE_FORMAT
 from ..services.user_service import create_user, get_user_by_telegram_id
@@ -50,8 +47,8 @@ logger = logging.getLogger(__name__)
 
 admin_router = Router()
 
-admin_router.message.filter(AdminMessageFilter())
-admin_router.callback_query.filter(AdminCallbackFilter())
+admin_router.message.filter(AdminFilter())
+admin_router.callback_query.filter(AdminFilter())
 
 
 @admin_router.message(CommandStart(), StateFilter(default_state))
@@ -725,6 +722,11 @@ async def process_export_to_gsheet(message: Message, google_sheet_id):
         F.text == KEYBOARD_BUTTON_TEXTS['button_send_notification'],
         StateFilter(default_state))
 async def process_create_notification(message: Message, state: FSMContext):
+    """
+    Хэндлер срабатывает при нажатии админом кнопки "Отправить рассылку",
+    просит админа прислать текст и переводит состояние в режим ожидания
+    текста для рассылки.
+    """
     await message.answer(ADMIN_TEXTS['ask_text_for_notif'])
     await state.set_state(FSMAdminPanel.waiting_for_text_of_notification)
 
@@ -733,6 +735,10 @@ async def process_create_notification(message: Message, state: FSMContext):
         F.text == KEYBOARD_BUTTON_TEXTS['button_info'],
         StateFilter(default_state))
 async def process_get_info(message: Message):
+    """
+    Хэндлер срабатывает при нажатии админом кнопки с инфо о текущем
+    состоянии работы бота.
+    """
     try:
         async with AsyncSessionLocal() as session:
             current_interval = await adm.get_global_interval(session)
@@ -766,6 +772,15 @@ async def process_cancel_creating_notif(message: Message, state: FSMContext):
 @admin_router.message(FSMAdminPanel.waiting_for_text_of_notification)
 async def process_get_text_of_notification(message: Message,
                                            state: FSMContext):
+    """
+    Хэндлер срабатывает при получении сообщения в режиме ожидания текста для
+    рассылки.
+    Если получен не текст, то просим прислать текст.
+    Если текст совпадает с текстом какой-либо кнопки меню, сообщаем об этом и
+    просим прислать новый корректный текст.
+    При получении корректного текста, отправляем инлайн-клавиатуру с просьбой
+    подтвердить рассылку, изменить или отменить ее.
+    """
     if not message.text:
         await message.answer(ADMIN_TEXTS['reject_no_text'])
         return
@@ -797,6 +812,10 @@ async def process_get_text_of_notification(message: Message,
 @admin_router.callback_query(lambda c: c.data.startswith('confirm_notif:'),
                              StateFilter(default_state))
 async def process_send_notif(callback: CallbackQuery, bot: Bot):
+    """
+    Хэндлер срабатывает при нажатии инлайн-кнопки для
+    подтверждения отправки рассылки.
+    """
     await callback.answer()
     _, notif_id_str = adm.parse_callback_data(callback.data)
     try:
@@ -838,6 +857,10 @@ async def process_send_notif(callback: CallbackQuery, bot: Bot):
                              StateFilter(default_state))
 async def process_create_other_notification(callback: CallbackQuery,
                                             state: FSMContext):
+    """
+    Хэндлер срабатывает при нажатии инлайн-кнопки для
+    изменения текста рассылки.
+    """
     await callback.answer()
     if isinstance(callback.message, Message):
         await callback.message.edit_text(ADMIN_TEXTS['ask_text_for_notif'])
@@ -847,6 +870,10 @@ async def process_create_other_notification(callback: CallbackQuery,
 @admin_router.callback_query(F.data == 'cancel_notif',
                              StateFilter(default_state))
 async def process_cancel_notif(callback: CallbackQuery):
+    """
+    Хэндлер срабатывает при нажатии инлайн-кнопки для
+    отмены создания рассылки.
+    """
     await callback.answer()
     if isinstance(callback.message, Message):
         await callback.message.edit_text(ADMIN_TEXTS['notif_is_canceled'])
@@ -856,6 +883,12 @@ async def process_cancel_notif(callback: CallbackQuery):
         F.text == KEYBOARD_BUTTON_TEXTS['button_on_off'],
         StateFilter(default_state))
 async def process_button_on_off(message: Message):
+    """
+    Хэндлер срабатывает при нажатии админом кнопки "Управление ботом"
+    и отправляет инлайн-кнопку с просьбой подтвердить остановку или
+    возобновление (в зависимости от текущего статуса) работы
+    функционала формирования пар.
+    """
     try:
         next_pairing_date = await get_next_pairing_date()
         async with AsyncSessionLocal() as session:
@@ -881,6 +914,10 @@ async def process_button_on_off(message: Message):
 @admin_router.callback_query(F.data == 'confirm_pairing_off',
                              StateFilter(default_state))
 async def pause_pairing_handler(callback: CallbackQuery):
+    """
+    Хэндлер срабатвает при нажатии инлайн-кнопки "Да", чтобы
+    подтвердить остановку функционала формирования пар.
+    """
     try:
         async with AsyncSessionLocal() as session:
             setting = await session.execute(select(Setting))
@@ -903,6 +940,10 @@ async def pause_pairing_handler(callback: CallbackQuery):
 @admin_router.callback_query(F.data == 'confirm_pairing_on',
                              StateFilter(default_state))
 async def resume_pairing_handler(callback: CallbackQuery):
+    """
+    Хэндлер срабатвает при нажатии инлайн-кнопки "Да", чтобы
+    подтвердить возобновление функционала формирования пар.
+    """
     try:
         async with AsyncSessionLocal() as session:
             setting = await session.execute(select(Setting))
@@ -935,8 +976,10 @@ async def process_cancel_pairing_off(callback: CallbackQuery):
 @admin_router.message(Command('user_menu'), StateFilter(default_state))
 async def open_user_menu_to_admin(message: Message):
     """
-    Хэндлер для добавления супер-админа в базу данных, чтобы он тоже
-    стал участником встреч.
+    Хэндлер срабатывает при отправке команды /user_menu и отправляет клавиатуру
+    обычного пользователя (в зависимости от статуса участия).
+    Если команда отправлена супер-админом, и его еще нет в БД как участника, то
+    мы добавляем его в БД.
     """
     if message.from_user is None:
         return
@@ -967,6 +1010,10 @@ async def open_user_menu_to_admin(message: Message):
 
 @admin_router.message(Command('admin_menu'), StateFilter(default_state))
 async def open_admin_menu(message: Message):
+    """
+    Хэндлер срабатвает при отправке команлы /admin_menu и отправляет
+    адвминское меню.
+    """
     await message.answer(ADMIN_TEXTS['change_menu_to_admin_kb'],
                          reply_markup=buttons_kb_admin)
 
@@ -974,6 +1021,6 @@ async def open_admin_menu(message: Message):
 @admin_router.message(Command('admin_help'), StateFilter(default_state))
 async def proccess_comand_help(message: Message):
     """
-    Хэндлер обрабатывает команду /help.
+    Хэндлер обрабатывает команду /admin_help.
     """
     await message.answer(ADMIN_TEXTS['command_help_admin'], parse_mode='HTML')

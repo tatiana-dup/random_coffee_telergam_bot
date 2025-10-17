@@ -1,5 +1,7 @@
+from typing import Union
+
 from aiogram.filters import BaseFilter
-from aiogram import types
+from aiogram.types import CallbackQuery, Message
 
 from ..config import load_config
 
@@ -8,15 +10,11 @@ config = load_config()
 admins_list = config.tg_bot.admins_list
 
 
-class SuperAdminMessageFilter(BaseFilter):
-    async def __call__(self, message: types.Message) -> bool:
-        user_id = message.from_user.id
-        is_access = user_id in admins_list
-        return is_access
-
-
-class SuperAdminCallbackFilter(BaseFilter):
-    async def __call__(self, callback_query: types.CallbackQuery) -> bool:
-        user_id = callback_query.from_user.id
-        is_access = user_id in admins_list
-        return is_access
+class SuperAdminFilter(BaseFilter):
+    """
+    Фильтр проверяет, что пользователь является супер-админом.
+    """
+    async def __call__(self, event: Union[CallbackQuery, Message]) -> bool:
+        user_telegram = getattr(event, "from_user", None)
+        user_id = user_telegram.id if user_telegram else None
+        return user_id in admins_list if user_id else False

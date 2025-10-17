@@ -1,6 +1,7 @@
 import logging
-from typing import Optional
+from typing import Optional, Union
 
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,17 @@ async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int
     query = select(User).where(User.telegram_id == telegram_id)
     result = await session.execute(query)
     user = result.scalar_one_or_none()
+    return user
+
+
+async def get_user_from_event(session: AsyncSession,
+                              event: Union[CallbackQuery, Message]
+                              ) -> Optional[User]:
+    user_telegram = getattr(event, "from_user", None)
+    if not user_telegram:
+        return None
+
+    user = await get_user_by_telegram_id(session, user_telegram.id)
     return user
 
 
