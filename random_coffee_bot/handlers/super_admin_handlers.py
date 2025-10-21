@@ -101,7 +101,7 @@ async def process_user_id(message: Message, state: FSMContext):
     Command('remove_admin'),
     StateFilter(default_state)
 )
-async def cmd_remove_admin(message: Message, state: FSMAdminPanel):
+async def cmd_remove_admin(message: Message, state: FSMContext):
     """Хэндлер для удаления не главного админа командой /remove_admin."""
     await message.answer(ADMIN_TEXTS['prompt_for_admin_id'])
     await state.set_state(FSMAdminPanel.waiting_for_admin_id)
@@ -118,7 +118,7 @@ async def cancel_user_handler(message: Message, state: FSMContext):
 
 
 @super_admin_router.message(StateFilter(FSMAdminPanel.waiting_for_admin_id))
-async def process_admin_id(message: Message, state: FSMContext):
+async def process_admin_id(message: Message, state: FSMContext, admins_list):
     """Ввод ID не главного админа которого хочешь удалить."""
     if message.text in KEYBOARD_BUTTON_TEXTS.values():
         await message.answer(ADMIN_TEXTS['no_kb_buttons'])
@@ -129,9 +129,16 @@ async def process_admin_id(message: Message, state: FSMContext):
     if isinstance(user_id_str, str) and user_id_str.isdigit():
         user_id = int(user_id_str)
 
-        if await is_admin_user(user_id):
+        if not await is_admin_user(user_id):
             await message.answer(
                 ADMIN_TEXTS['invalid_admin_user']
+            )
+            await state.clear()
+            return
+
+        if user_id in admins_list:
+            await message.answer(
+                ADMIN_TEXTS['reject_remove_super_admin']
             )
             await state.clear()
             return

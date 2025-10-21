@@ -567,14 +567,13 @@ async def is_user_admin(user_id: int) -> bool:
 
 async def is_admin_user(user_id: int) -> bool:
     """
-    Проверяет, является ли пользователь с заданным telegram_id обычным
-    пользователем (не администратором).
+    Проверяет, является ли пользователь с заданным telegram_id администратором.
 
     Параметры:
     user_id (int): Telegram ID пользователя, статус которого нужно проверить.
 
     Возвращает:
-    bool: True, если пользователь не является администратором; False в
+    bool: True, если пользователь является администратором; False в
     противном случае.
     """
     try:
@@ -584,7 +583,7 @@ async def is_admin_user(user_id: int) -> bool:
             )
             user = result.scalars().first()
 
-            return user is not None and not user.is_admin
+            return user is not None and user.is_admin
     except Exception as e:
         logger.error(
             'Ошибка при проверке статуса администратора для '

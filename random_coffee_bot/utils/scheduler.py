@@ -11,6 +11,7 @@ from ..config import load_config
 from ..database.db import AsyncSessionLocal
 from ..database.models import Setting
 from ..globals import job_context
+from ..services.admin_service import get_admin_list
 from ..services.constants import DATE_TIME_FORMAT_LOCALTIME
 from ..texts import ADMIN_TEXTS
 from ..utils.pairing import auto_pairing
@@ -47,9 +48,13 @@ async def auto_pairing_wrapper():
                         '(флаг в настройках).')
             return
 
+    admin_ids = [admin.telegram_id for admin in await get_admin_list()]
+    super_admins = job_context.admin_id_list
+    all_admin_list = list(set(admin_ids + super_admins))
+
     await auto_pairing(session_maker,
                        job_context.bot,
-                       job_context.admin_id_list)
+                       all_admin_list)
 
 
 async def reload_scheduled_wrapper():
